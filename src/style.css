@@ -29,3 +29,5 @@ td:has(>input),td:has(>.product-cell){cursor:text}
 
 #sheet{min-width:1826px}.actual-purchase input{width:100%}
 .month-choice{position:relative}.month-grid{position:absolute;top:calc(100% + 8px);left:50%;transform:translateX(-50%);z-index:20;display:grid;grid-template-columns:repeat(4,1fr);gap:5px;width:260px;padding:12px;background:#fff;border:1px solid var(--grid);border-radius:8px}.month-grid[hidden]{display:none}.month-nav .month-grid button{font-size:12px;line-height:30px;padding:3px 0;border:1px solid transparent;border-radius:4px}.month-nav .month-grid button:hover,.month-nav .month-grid button:focus-visible{background:#f3f3f3}.month-nav .month-grid button[aria-pressed=true]{border-color:var(--grid);background:#eee;font-weight:500}
+
+#sheet .product-cell .delete-line{width:10px;padding:0}
