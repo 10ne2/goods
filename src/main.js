@@ -1,85 +1,51 @@
 import './style.css';
-import {totalCost,profit,summarize} from './ledger.js';
-const won=n=>new Intl.NumberFormat('ko-KR').format(n)+'원';
-const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const today=()=>new Date().toLocaleDateString('sv-SE');
-const key='goods-ledger-v1';
-let items=[],filter='all',query='',timer,storageError=false;
+import {totals, migrate} from './groups.js';
+const key='goods-ledger-groups-v2';
+const fmt=n=>new Intl.NumberFormat('ko-KR').format(n);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uuid=()=>crypto.randomUUID();
+const purchaseStates=['주문완료','배송중','수령완료'];
+const saleStates=['판매중','예약중','판매완료'];
+const blankLine=side=>({id:uuid(),name:'',price:'',status:side==='purchases'?'수령완료':'판매중',...(side==='sales'?{shipping:'',fee:''}:{})});
+const blankGroup=()=>({id:uuid(),name:'',shipping:'',extra:'',purchases:[],sales:[]});
+const lineUsed=r=>!!(r.name||r.price!==''||r.shipping||r.fee);
+const groupUsed=g=>!!(g.name||g.shipping||g.extra||g.purchases.some(lineUsed)||g.sales.some(lineUsed));
+const moneyValid=v=>v===''||(/^\d+$/.test(String(v))&&Number.isSafeInteger(Number(v))&&Number(v)<=999999999999);
+function validGroup(g){return g&&typeof g.id==='string'&&typeof g.name==='string'&&moneyValid(g.shipping)&&moneyValid(g.extra)&&['purchases','sales'].every(side=>Array.isArray(g[side])&&g[side].every(r=>r&&typeof r.id==='string'&&typeof r.name==='string'&&moneyValid(r.price)&&(side==='purchases'?purchaseStates:saleStates).includes(r.status)&&(side!=='sales'||(moneyValid(r.shipping)&&moneyValid(r.fee)))));}
+let groups=[],blocked=false,timer,query='';
 try{
- const saved=JSON.parse(localStorage.getItem(key)||'[]');
- if(!Array.isArray(saved)||!saved.every(i=>i&&typeof i.id==='string'&&typeof i.name==='string'&&typeof i.date==='string'&&['price','shipping','extra'].every(k=>Number.isSafeInteger(i[k])&&i[k]>=0)&&(!i.sale||(['price','shipping','fee'].every(k=>Number.isSafeInteger(i.sale[k])&&i.sale[k]>=0)&&typeof i.sale.date==='string'))))throw Error();
- items=saved;
-}catch{storageError=true;}
-const columns=[['name','상품명','text'],['date','구매일','date'],['price','구매가','number'],['shipping','구매 배송비','number'],['extra','기타 비용','number'],['cost','총 구매 비용'],['saleDate','판매일','date'],['salePrice','판매가','number'],['saleShipping','판매 배송비','number'],['fee','수수료','number'],['profit','손익']];
-const editable=columns.filter(c=>c[2]).map(c=>c[0]);
-function emptyRow(){return {id:crypto.randomUUID(),name:'',date:'',price:'',shipping:'',extra:'',saleDate:'',salePrice:'',saleShipping:'',fee:''};}
-let rows=items.map(i=>({id:i.id,name:i.name,date:i.date,price:String(i.price),shipping:String(i.shipping),extra:String(i.extra),saleDate:i.sale?.date||'',salePrice:i.sale?String(i.sale.price):'',saleShipping:i.sale?String(i.sale.shipping):'',fee:i.sale?String(i.sale.fee):''}));
-function touched(r){return editable.some(k=>r[k]!=='');}
-function padRows(){while(rows.length<10||touched(rows.at(-1)))rows.push(emptyRow());}
-padRows();
-function candidate(r){
- if(!r.name.trim()||!r.date)return null;
- for(const k of ['price','shipping','extra','salePrice','saleShipping','fee'])if(r[k]!==''&&(!/^\d+$/.test(r[k])||!Number.isSafeInteger(Number(r[k]))||Number(r[k])>999999999999))return null;
- if(r.price==='')return null;
- if(r.salePrice!==''&&!r.saleDate)return null;
- return {id:r.id,name:r.name.trim(),date:r.date,price:Number(r.price),shipping:Number(r.shipping),extra:Number(r.extra),sale:r.salePrice===''?null:{date:r.saleDate,price:Number(r.salePrice),shipping:Number(r.saleShipping),fee:Number(r.fee)}};
+ const stored=localStorage.getItem(key);
+ if(stored!==null){const parsed=JSON.parse(stored);if(!Array.isArray(parsed)||!parsed.every(validGroup))throw Error();groups=parsed;}
+ else{const legacy=JSON.parse(localStorage.getItem('goods-ledger-v1')||'[]');if(!Array.isArray(legacy)||!legacy.every(i=>i&&typeof i.id==='string'&&typeof i.name==='string'&&typeof i.date==='string'&&['price','shipping','extra'].every(k=>Number.isSafeInteger(i[k])&&i[k]>=0)&&(!i.sale||(['price','shipping','fee'].every(k=>Number.isSafeInteger(i.sale[k])&&i.sale[k]>=0)&&typeof i.sale.date==='string'))))throw Error();groups=migrate(legacy);}
+}catch{blocked=true;}
+function pad(){for(const g of groups)for(const side of ['purchases','sales']){while(g[side].length<3||lineUsed(g[side].at(-1)))g[side].push(blankLine(side));}while(groups.length<2||groupUsed(groups.at(-1))){const g=blankGroup();g.purchases=Array.from({length:3},()=>blankLine('purchases'));g.sales=Array.from({length:3},()=>blankLine('sales'));groups.push(g);}}
+pad();
+function storedGroups(){return groups.filter(groupUsed).map(g=>({...g,purchases:g.purchases.filter(lineUsed),sales:g.sales.filter(lineUsed)}));}
+function status(text,error=false){const node=document.querySelector('#notice');if(node){node.textContent=text;node.classList.toggle('error',error);}}
+function flush(){clearTimeout(timer);if(blocked){status('기존 기록을 읽지 못해 자동 저장을 중지했습니다. 브라우저 데이터를 확인해주세요.',true);return false;}const data=storedGroups();if(!data.every(validGroup)){status('저장 대기 · 금액은 0 이상의 정수로 입력해주세요. 이전 저장 기록은 유지됩니다.',true);return false;}try{localStorage.setItem(key,JSON.stringify(data));status('✓ 자동 저장 완료');return true;}catch{status('저장 실패 · 입력은 화면에 유지됩니다. 브라우저 저장 공간을 확인해주세요.',true);return false;}}
+function input(g,side,row,field,label,type='text',placeholder=''){
+ const source=side==='group'?g:row;
+ return `<input data-group="${g.id}" data-side="${side}" data-id="${row?.id||''}" data-field="${field}" aria-label="${esc(label)}" type="${type}" value="${esc(source[field])}" ${type==='number'?'min="0" max="999999999999" step="1" inputmode="numeric"':'maxlength="160"'} placeholder="${esc(placeholder)}" autocomplete="off">`;
 }
-function currentItems(){return rows.flatMap(r=>{const i=candidate(r)||items.find(i=>i.id===r.id);return i?[i]:[];});}
-function status(text,error=false){const el=document.querySelector('#notice');el.textContent=text;el.classList.toggle('error',error);}
-function flush(){
- clearTimeout(timer);
- if(storageError){status('기존 데이터를 읽지 못해 자동 저장을 중지했습니다. CSV 또는 브라우저 데이터를 먼저 확인해주세요.',true);return false;}
- const next=currentItems();
- try{localStorage.setItem(key,JSON.stringify(next));items=next;refreshSummary();const incomplete=rows.some(r=>touched(r)&&!candidate(r));status(incomplete?'입력 중 · 상품명, 구매일, 구매가를 확인해주세요. 미완성 행은 아직 저장되지 않습니다.':'✓ 자동 저장 완료');return true;}
- catch{status('저장 실패 · 입력값은 화면에 유지됩니다. 저장 공간을 확인하고 다시 입력해주세요.',true);return false;}
+function select(g,side,r,label){const states=side==='purchases'?purchaseStates:saleStates;return `<select data-group="${g.id}" data-side="${side}" data-id="${r.id}" data-field="status" aria-label="${label}">${states.map(s=>`<option ${r.status===s?'selected':''}>${s}</option>`).join('')}</select>`;}
+function rowCells(g,side,r,i){const buy=side==='purchases',label=`${groups.indexOf(g)+1}묶음 ${buy?'구매':'판매'} ${i+1}행`;
+ if(!r)return `<td class="${buy?'purchase':'sale'}"></td><td class="${buy?'purchase':'sale'}"></td>`;
+ return `<td class="${buy?'purchase':'sale'} product"><div class="product-cell">${input(g,side,r,'name',label+' 상품명','text',i===0?'상품명 입력':'')}<button class="delete-line" data-delete-line="${r.id}" data-group="${g.id}" data-side="${side}" aria-label="${label} 삭제" title="이 상품 삭제">×</button></div></td><td class="${buy?'purchase':'sale'} price">${input(g,side,r,'price',label+' 가격','number')}${!buy?`<details ${r.shipping||r.fee?'open':''}><summary>판매 비용</summary><label>배송비${input(g,side,r,'shipping',label+' 판매 배송비','number')}</label><label>수수료${input(g,side,r,'fee',label+' 판매 수수료','number')}</label></details>`:''}</td>`;
 }
-function summaryHTML(){const s=summarize(currentItems());return `<article><span>총 구매 비용</span><strong>${won(s.cost)}</strong></article><article><span>총 판매 금액</span><strong>${won(s.revenue)}</strong></article><article class="profit-card"><span>판매 손익</span><strong>${s.profit>0?'+':''}${won(s.profit)}</strong></article><article><span>보유 상품</span><strong>${s.stock}<em>개</em></strong></article>`;}
-function refreshSummary(){document.querySelector('.stats').innerHTML=summaryHTML();document.querySelector('#count').textContent=currentItems().length;}
-function render(){document.querySelector('#app').innerHTML=`<aside><a class="brand" href="#">▧ <span>차곡<span class="brand-dot">.</span></span></a><div class="side-label">MY WORKSPACE</div><div class="active-nav">▦ <span>구매 · 판매 장부</span></div><div class="side-bottom">작은 기록이 모여<br>분명한 수익이 되도록.</div></aside><main><header><span>나의 거래 관리</span><span class="local-badge">● 이 브라우저에 저장</span></header><section class="heading"><div><div class="eyebrow">MY GOODS LEDGER</div><h1>구매 · 판매 장부</h1><p>빈 칸에 바로 입력하세요. 비용과 손익은 자동으로 계산됩니다.</p></div></section><section class="stats">${summaryHTML()}</section><section class="ledger"><div class="ledger-title"><h2>거래 내역 <span id="count">${items.length}</span></h2><button class="text-btn" id="export">↓ CSV 내보내기</button></div><div class="toolbar"><div class="tabs">${[['all','전체'],['stock','보유 중'],['sold','판매 완료']].map(([v,l])=>`<button data-filter="${v}" class="${filter===v?'selected':''}">${l}</button>`).join('')}</div><input id="search" aria-label="상품 검색" placeholder="⌕ 상품명으로 검색" value="${escape(query)}"></div><p class="entry-help">Tab: 다음 칸 · Enter / ↑ ↓: 위아래 행 · 판매가 입력 시 판매 완료 · 판매가를 비우면 판매 취소</p><div id="notice" role="status" aria-live="polite"></div><div id="records"></div></section><footer>이 브라우저에 자동 저장됩니다. 다른 기기와 동기화되지 않으니 CSV로 백업하세요.</footer></main>`;
- renderRecords();status(storageError?'기존 저장 데이터를 읽지 못했습니다. 자동 저장을 중지했습니다.':'빈 행에 상품명과 구매가를 입력하면 자동 저장됩니다.',storageError);
- document.querySelectorAll('[data-filter]').forEach(b=>b.onclick=()=>{flush();filter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(t=>t.classList.toggle('selected',t.dataset.filter===filter));renderRecords();});
- document.querySelector('#search').oninput=e=>{query=e.target.value;renderRecords();};
- document.querySelector('#export').onclick=()=>{if(flush())exportCSV();};
+function bodyHTML(g){const n=Math.max(g.purchases.length,g.sales.length);const index=groups.indexOf(g)+1;
+ return `<tbody data-body="${g.id}">${Array.from({length:n},(_,i)=>{const p=g.purchases[i],s=g.sales[i];return `<tr>${i===0?`<td class="group-name purchase" rowspan="${n}">${input(g,'group',null,'name',index+'묶음 이름','text','묶음 이름')}<button class="delete-group" data-delete-group="${g.id}">묶음 삭제</button></td>`:''}${rowCells(g,'purchases',p,i)}${i===0?`<td class="purchase shared" rowspan="${n}">${input(g,'group',null,'shipping',index+'묶음 배송비','number')}<details ${g.extra?'open':''}><summary>기타 비용</summary>${input(g,'group',null,'extra',index+'묶음 기타 비용','number')}</details></td><td class="purchase total" rowspan="${n}" data-total="cost"></td>`:''}<td class="purchase state">${p?select(g,'purchases',p,index+'묶음 구매 '+(i+1)+'행 구매상황'):''}</td>${rowCells(g,'sales',s,i)}${i===0?`<td class="sale total" rowspan="${n}" data-total="current"></td><td class="sale total" rowspan="${n}" data-total="expected"></td>`:''}<td class="sale state">${s?select(g,'sales',s,index+'묶음 판매 '+(i+1)+'행 판매상황'):''}</td>${i===0?`<td class="difference total" rowspan="${n}" data-total="currentDifference"></td><td class="difference total" rowspan="${n}" data-total="expectedDifference"></td>`:''}</tr>`;}).join('')}</tbody>`;
 }
-function cell(r,column,index){const [name,label,type]=column;
- if(!type)return `<td class="computed" data-computed="${name}">—</td>`;
- return `<td><input data-col="${name}" aria-label="${index+1}행 ${label}" type="${type}" value="${escape(r[name])}" ${type==='number'?'min="0" max="999999999999" step="1" inputmode="numeric"':type==='text'?'maxlength="120" placeholder="상품명 입력"':''} autocomplete="off"></td>`;
-}
-function rowHTML(r){const index=rows.indexOf(r);return `<tr data-row="${r.id}"><th scope="row" class="row-number">${index+1}</th>${columns.map(c=>cell(r,c,index)).join('')}<td class="row-menu"><button data-delete="${r.id}" aria-label="${index+1}행 삭제" title="행 삭제">×</button></td></tr>`;}
-function renderRecords(){
- const visible=rows.filter(r=>!touched(r)||((filter==='all'||(filter==='sold'?r.salePrice!=='':r.salePrice===''))&&r.name.toLowerCase().includes(query.toLowerCase())));
- document.querySelector('#records').innerHTML=`<div class="table-wrap sheet-scroll" tabindex="0" aria-label="구매 판매 스프레드시트. 가로로 스크롤할 수 있습니다."><table class="sheet"><thead><tr><th class="row-number">#</th>${columns.map(([name,label],i)=>`<th scope="col" class="${['cost','profit'].includes(name)?'computed':''}"><small>${String.fromCharCode(65+i)}</small>${label}${['cost','profit'].includes(name)?' · 자동':''}</th>`).join('')}<th scope="col">관리</th></tr></thead><tbody>${visible.map(rowHTML).join('')}</tbody></table></div>`;
- for(const r of visible)updateRow(r);
- const body=document.querySelector('tbody');
- body.oninput=e=>{if(!e.target.matches('[data-col]'))return;const input=e.target;const r=rows.find(r=>r.id===input.closest('tr').dataset.row);r[input.dataset.col]=input.value;
-  if(!r.date&&r.name.trim()){r.date=today();input.closest('tr').querySelector('[data-col="date"]').value=r.date;}
-  if(input.dataset.col==='salePrice'&&r.salePrice!==''&&!r.saleDate){r.saleDate=today();input.closest('tr').querySelector('[data-col="saleDate"]').value=r.saleDate;}
-  updateRow(r);refreshSummary();status('저장 중…');clearTimeout(timer);timer=setTimeout(flush,350);
-  const n=rows.length;padRows();for(const added of rows.slice(n)){body.insertAdjacentHTML('beforeend',rowHTML(added));updateRow(added);}
- };
- body.addEventListener('focusout',e=>{if(e.target.matches('[data-col]'))flush();});
- body.onkeydown=e=>{
-  if(!e.target.matches('[data-col]')||e.isComposing)return;
-  if(!['Enter','ArrowUp','ArrowDown','Tab'].includes(e.key))return;
-  const inputs=[...body.querySelectorAll('input')],index=inputs.indexOf(e.target);let target;
-  if(e.key==='Tab')target=inputs[index+(e.shiftKey?-1:1)];
-  else{const tr=e.target.closest('tr');const other=e.key==='ArrowUp'||(e.key==='Enter'&&e.shiftKey)?tr.previousElementSibling:tr.nextElementSibling;target=other?.querySelector(`[data-col="${e.target.dataset.col}"]`);}
-  if(target){e.preventDefault();target.focus();if(target.type!=='date')target.select();}
- };
- body.onclick=e=>{const b=e.target.closest('[data-delete]');if(!b)return;const r=rows.find(r=>r.id===b.dataset.delete);
-  if(touched(r)&&!confirm('이 행의 구매·판매 기록을 삭제할까요?'))return;
-  const saved=items;items=items.filter(i=>i.id!==r.id);const remaining=rows.filter(i=>i.id!==r.id);
-  try{if(storageError)throw Error();localStorage.setItem(key,JSON.stringify(items));rows=remaining;padRows();renderRecords();refreshSummary();status('행을 삭제했습니다.');}
-  catch{items=saved;status('삭제하지 못했습니다. 저장 공간과 설정을 확인해주세요.',true);}
- };
-}
-function updateRow(r){const tr=document.querySelector(`[data-row="${r.id}"]`);if(!tr)return;const item=candidate(r);const hasCost=['price','shipping','extra'].some(k=>r[k]!=='');const cost=Number(r.price)+Number(r.shipping)+Number(r.extra);const p=r.salePrice===''?null:Number(r.salePrice)-Number(r.saleShipping)-Number(r.fee)-cost;
- tr.querySelector('[data-computed="cost"]').textContent=hasCost&&Number.isFinite(cost)?won(cost):'—';
- const out=tr.querySelector('[data-computed="profit"]');out.textContent=p!==null&&Number.isFinite(p)?`${p>0?'+':''}${won(p)}`:'—';out.className=`computed ${p>0?'positive':p<0?'negative':''}`;
- tr.classList.toggle('unsaved',touched(r)&&!item);tr.classList.toggle('sold-row',r.salePrice!=='');
- tr.querySelectorAll('input').forEach(input=>{const invalid=(input.type==='number'&&!input.validity.valid)||(input.dataset.col==='name'&&touched(r)&&!r.name.trim());input.setAttribute('aria-invalid',String(invalid));});
-}
+function matches(g){return !groupUsed(g)||!query||[g.name,...g.purchases.map(r=>r.name),...g.sales.map(r=>r.name)].some(s=>s.toLowerCase().includes(query.toLowerCase()));}
+function renderTable(){document.querySelector('#sheet').innerHTML=`<thead><tr class="bands"><th colspan="6" class="purchase">구매 내역</th><th colspan="5" class="sale">판매 내역</th><th colspan="2">차액</th></tr><tr>${['이름','상품명','가격','배송비','총합','구매상황','상품명','가격','현재총합','예상총합','판매상황','현재 차액','확정 차액'].map((label,i)=>`<th scope="col" class="${i<6?'purchase':i<11?'sale':'difference'}">${label}</th>`).join('')}</tr></thead>${groups.filter(matches).map(bodyHTML).join('')}`;updateTotals();}
+function updateTotals(){const sum={cost:0,current:0,expected:0,expectedDifference:0};for(const g of groups){const t=totals(g);const body=document.querySelector(`[data-body="${g.id}"]`);body?.querySelectorAll('[data-total]').forEach(el=>{const v=t[el.dataset.total];el.textContent=groupUsed(g)?fmt(v):'—';el.classList.toggle('recovered',el.dataset.total.includes('Difference')&&v<0);});for(const k in sum)sum[k]+=t[k];}for(const [k,v]of Object.entries(sum))document.querySelector(`[data-summary="${k}"]`).textContent=fmt(v)+'원';}
+function redrawPreservingFocus(){const active=document.activeElement;const selector=active?.dataset.field?`[data-group="${active.dataset.group}"][data-side="${active.dataset.side}"][data-id="${active.dataset.id}"][data-field="${active.dataset.field}"]`:null;const start=active?.selectionStart,end=active?.selectionEnd;const wrapper=document.querySelector('.sheet-scroll'),left=wrapper.scrollLeft,top=wrapper.scrollTop;renderTable();const next=selector&&document.querySelector(selector);if(next){next.focus({preventScroll:true});if(next.type==='text'&&start!==null)next.setSelectionRange(start,end);}wrapper.scrollLeft=left;wrapper.scrollTop=top;}
+function edit(e){const el=e.target;if(!el.matches('[data-field]'))return;const g=groups.find(g=>g.id===el.dataset.group);const source=el.dataset.side==='group'?g:g[el.dataset.side].find(r=>r.id===el.dataset.id);source[el.dataset.field]=el.value;el.setAttribute('aria-invalid',String(el.type==='number'&&!el.validity.valid));updateTotals();status('저장 중…');clearTimeout(timer);timer=setTimeout(flush,350);
+ const before=groups.map(g=>`${g.purchases.length}:${g.sales.length}`).join('|');if(!e.isComposing){pad();if(before!==groups.map(g=>`${g.purchases.length}:${g.sales.length}`).join('|'))redrawPreservingFocus();}}
+function render(){document.querySelector('#app').innerHTML=`<header><a class="brand" href="#">▧ 차곡<span>.</span></a><span>구매 · 판매 장부</span><span class="local">이 브라우저에 자동 저장</span></header><main><div class="page-title"><div><h1>나의 구매 · 판매 시트</h1><p>묶음별 구매부터 판매까지, 한 장의 표에서 관리하세요.</p></div><div class="tools"><input id="search" aria-label="묶음 또는 상품 검색" placeholder="묶음 · 상품 검색"><button id="export">↓ CSV 내보내기</button></div></div><section class="summary">${[['cost','총 구매 비용'],['current','판매완료 금액'],['expected','판매예정 포함 금액'],['expectedDifference','판매 후 남는 구매 비용']].map(([k,label])=>`<div><span>${label}</span><strong data-summary="${k}">0원</strong></div>`).join('')}</section><div class="sheet-toolbar"><span><i class="buy-dot"></i> 구매 <i class="sale-dot"></i> 판매</span><span id="notice" role="status" aria-live="polite"></span><span>단위: 원</span></div><div class="sheet-scroll" tabindex="0" aria-label="구매 판매 장부. 가로로 스크롤할 수 있습니다."><table id="sheet"></table></div><div class="sheet-notes"><p><b>입력 방법</b> 빈 칸을 클릭해 입력 · 마지막 상품 행과 마지막 묶음에 입력하면 다음 빈 칸 자동 생성 · Tab으로 옆 칸, Enter로 같은 열의 다음 행 이동</p><p><b>계산 기준</b> 현재총합 = 판매완료 금액 · 예상총합 = 판매중·예약중·판매완료 금액 합계<br>현재 차액 = 구매 총합 − 현재총합 + 완료 판매 비용 · 확정 차액 = 구매 총합 − 예상총합 + 전체 판매 비용<br>차액은 아직 회수하지 못한 구매 비용입니다. 음수이면 그만큼 이익이며, 확정 차액은 판매예정 가격을 포함한 예상값입니다.</p><p>배송비는 묶음당 한 번만 합산합니다. 기존 기록은 개별 묶음으로 유지하며, 다른 기기와 동기화되지 않으니 CSV로 백업하세요.</p></div></main>`;renderTable();status(blocked?'기존 데이터를 읽지 못했습니다. 자동 저장이 중지되었습니다.':'빈 칸에 바로 입력하세요.',blocked);
+ const sheet=document.querySelector('#sheet');sheet.addEventListener('input',edit);sheet.addEventListener('change',e=>{if(e.target.tagName==='SELECT'){edit(e);flush();}});sheet.addEventListener('compositionend',edit);sheet.addEventListener('focusout',e=>{if(e.target.matches('[data-field]'))flush();});
+ sheet.addEventListener('keydown',e=>{if(e.isComposing||!e.target.matches('input,select')||!['Tab','Enter','ArrowUp','ArrowDown'].includes(e.key))return;const el=e.target;if(e.key==='Tab'){const cells=[...sheet.querySelectorAll('input,select')].filter(n=>n.getClientRects().length);const next=cells[cells.indexOf(el)+(e.shiftKey?-1:1)];if(next){e.preventDefault();next.focus();if(next.type==='text')next.select();}return;}if(el.dataset.side==='group'||el.tagName==='SELECT')return;const tr=el.closest('tr'),other=e.key==='ArrowUp'||(e.key==='Enter'&&e.shiftKey)?tr.previousElementSibling:tr.nextElementSibling;const next=other?.querySelector(`[data-side="${el.dataset.side}"][data-field="${el.dataset.field}"]`);if(next){e.preventDefault();next.focus();if(next.type==='text')next.select();}});
+ sheet.addEventListener('click',e=>{const button=e.target.closest('[data-delete-group],[data-delete-line]');if(!button)return;const id=button.dataset.deleteGroup||button.dataset.group;const g=groups.find(g=>g.id===id);if(!confirm(button.dataset.deleteGroup?'이 묶음의 구매·판매 기록을 모두 삭제할까요?':'이 상품 행을 삭제할까요?'))return;const previous=structuredClone(groups);if(button.dataset.deleteGroup)groups=groups.filter(g=>g.id!==id);else g[button.dataset.side]=g[button.dataset.side].filter(r=>r.id!==button.dataset.deleteLine);if(!flush())groups=previous;pad();renderTable();});
+ document.querySelector('#search').oninput=e=>{query=e.target.value;renderTable();};document.querySelector('#export').onclick=()=>{if(flush())exportCSV();};}
+function exportCSV(){const cell=v=>'"'+String(v??'').replace(/^[=+@\-\t\r]/,"'$&").replaceAll('"','""')+'"';const lines=[['묶음 이름','종류','상품명','가격','상황','묶음 배송비','묶음 기타 비용','판매 배송비','판매 수수료','구매 총합','현재총합','예상총합','현재 차액','확정 차액','날짜']];for(const g of storedGroups()){const t=totals(g);for(const side of ['purchases','sales'])g[side].forEach((r,i)=>lines.push([g.name,side==='purchases'?'구매':'판매',r.name,r.price,r.status,side==='purchases'&&i===0?g.shipping:'',side==='purchases'&&i===0?g.extra:'',r.shipping||'',r.fee||'',t.cost,t.current,t.expected,t.currentDifference,t.expectedDifference,r.date||'']));}const url=URL.createObjectURL(new Blob(['\ufeff'+lines.map(row=>row.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='goods-구매판매장부.csv';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 window.addEventListener('pagehide',flush);
-function exportCSV(){const cell=v=>'"'+String(v).replace(/^[=+@\-]/,"'$&").replaceAll('"','""')+'"';const rows=[['상품명','구매일','구매가','구매 배송비','기타 비용','총 구매 비용','판매일','판매가','판매 배송비','수수료','손익'],...items.map(i=>[i.name,i.date,i.price,i.shipping,i.extra,totalCost(i),i.sale?.date||'',i.sale?.price??'',i.sale?.shipping??'',i.sale?.fee??'',profit(i)??''])];const url=URL.createObjectURL(new Blob(['\ufeff'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`차곡-${today()}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-
 render();
