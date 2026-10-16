@@ -20,3 +20,6 @@ npm run build
 
 ## GitHub Pages 배포
 `.github/workflows/pages.yml`이 main 브랜치의 변경을 테스트하고 `/goods/` 경로로 빌드한 뒤 배포합니다. 저장소 Settings → Pages → Build and deployment → Source를 **GitHub Actions**로 선택해야 합니다. 예상 주소는 https://10ne2.github.io/goods/ 입니다. GitHub Pages 활성화 및 성공한 배포가 있어야 이 주소로 접속할 수 있습니다.
+
+## 테이블 입력
+상단의 `행 추가` 또는 표 하단의 `구매 행 추가`로 입력 행을 만듭니다. 구매·판매·수정은 팝업 없이 테이블에서 입력한 뒤 행의 `저장`을 누릅니다. 입력 중 비용과 손익이 계산되고, 저장된 기록만 상단 합계에 반영됩니다. 여러 행의 작성 중 값은 검색·필터 변경이나 다른 행 저장 시 유지되며, `취소`로 버릴 수 있습니다. 저장은 페이지 이동 없이 처리됩니다. 기존과 동일한 localStorage 저장 키를 사용하므로 기존 구매·판매 기록을 유지합니다. 작성 중인 미저장 행은 새로고침하면 사라집니다.
