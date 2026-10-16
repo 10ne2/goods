@@ -41,7 +41,7 @@ function rowHTML(side, row, index) {
 }
 function tableHTML(side) {
   const buy = side === 'purchases';
-  return `<section class="independent-panel" aria-label="개별 ${buy ? '구매' : '판매'} 장부"><table class="independent-sheet" data-independent-side="${side}"><thead><tr class="bands"><th colspan="5" class="${buy ? 'purchase' : 'sale'}"><div><span>개별 ${buy ? '구매' : '판매'} 내역</span><button data-independent-add="${side}" aria-label="개별 ${buy ? '구매' : '판매'} 행 추가">＋</button></div></th></tr><tr>${['상품명', '가격', '배송비', buy ? '총 구매 비용' : '정산액', buy ? '구매상황' : '판매상황'].map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${data[side].map((row, index) => rowHTML(side, row, index)).join('')}</tbody></table><div class="independent-total" data-independent-summary="${side}"></div></section>`;
+  return `<section class="independent-panel" aria-label="개별 ${buy ? '구매' : '판매'} 장부"><h2 class="individual-title">개별 ${buy ? '구매' : '판매'} 테이블</h2><table class="independent-sheet" data-independent-side="${side}"><thead><tr class="bands"><th colspan="5" class="${buy ? 'purchase' : 'sale'}"><div><span>개별 ${buy ? '구매' : '판매'} 내역</span><button data-independent-add="${side}" aria-label="개별 ${buy ? '구매' : '판매'} 행 추가">＋</button></div></th></tr><tr>${['상품명', '가격', '배송비', buy ? '총 구매 비용' : '정산액', buy ? '구매상황' : '판매상황'].map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${data[side].map((row, index) => rowHTML(side, row, index)).join('')}</tbody></table><div class="independent-total" data-independent-summary="${side}"></div></section>`;
 }
 function refreshTotals() {
   const totals = independentTotals(data);
@@ -63,7 +63,7 @@ export function mountIndependent() {
   for (const side of sides) if (!data[side].length) data[side].push(blank(side));
   mounted = true;
   const section = document.querySelector('#independent');
-  section.innerHTML = `<div class="independent-heading"><div><h2>개별 구매 · 판매</h2><p>묶음과 관계없이 구매만 하거나 판매만 하는 기록을 각각 입력하세요.</p></div><span id="independent-notice" role="status" aria-live="polite"></span></div><div class="independent-scroll"><div class="independent-grid"></div></div>`;
+  section.innerHTML = `<div class="independent-heading"><span id="independent-notice" role="status" aria-live="polite"></span></div><div class="independent-scroll"><div class="independent-grid"></div></div>`;
   renderTables();
   if (blocked) message('개별 기록을 읽지 못해 자동 저장을 중지했습니다.', true);
   function edit(event) {
