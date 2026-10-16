@@ -54,7 +54,7 @@ function bodyHTML(g){
  return `<tbody data-body="${g.id}">${Array.from({length:n},(_,i)=>{
   const p=g.purchases[i],r=g.sales[i];
   const purchase=p?`${rowCells(g,'purchases',p,i)}${i===0?`<td class="purchase shared" rowspan="${pn}">${input(g,'group',null,'shipping',index+'묶음 배송비','number')}</td><td class="purchase total" rowspan="${pn}" data-total="cost"></td><td class="purchase state" rowspan="${pn}">${purchaseStatus(g,index)}</td>`:''}`:i===pn?add('purchases'):'<td colspan="5" class="side-spacer"></td>';
-  const sale=r?`${rowCells(g,'sales',r,i)}${i===0?`<td class="total" rowspan="${sn}" data-total="current"></td><td class="total" rowspan="${sn}" data-total="expected"></td>`:''}<td class="sale state">${select(g,'sales',r,index+'묶음 판매 '+(i+1)+'행 판매상황')}</td>`:i===sn?add('sales'):'<td colspan="5" class="side-spacer"></td>';
+  const sale=r?`${rowCells(g,'sales',r,i)}${i===0?`<td class="total" rowspan="${sn}" data-total="current"></td><td class="total" rowspan="${sn}" data-total="expected"></td>`:''}<td class="sale state">${select(g,'sales',r,index+'묶음 판매 '+(i+1)+'행 판매상황')}</td>`:i===sn?add('sales'):i===sn+1?`<td colspan="5" rowspan="${n-sn-1}" class="side-spacer sales-spacer"></td>`:'';
   return `<tr class="${i===0?'group-start ':''}${p||r?'data-row':'add-row'}" ${r?`data-sale-id="${r.id}"`:''}>${purchase}${sale}${i===0?`<td class="difference total" rowspan="${n}" data-total="currentDifference"></td><td class="difference total" rowspan="${n}" data-total="expectedDifference"></td><td class="group-delete-cell" rowspan="${n}"><button data-delete-group="${g.id}" aria-label="${index}묶음 삭제" title="묶음 삭제">×</button></td>`:''}</tr>`;
  }).join('')}</tbody>`;
 }
