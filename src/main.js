@@ -10,7 +10,7 @@ const purchaseStates=['주문완료','배송중','수령완료'];
 const saleStates=['판매전','판매중','예약중','판매완료'];
 const blankLine=side=>({id:uuid(),name:'',price:'',status:side==='purchases'?'주문완료':'판매전',...(side==='sales'?{shipping:''}:{})});
 const blankGroup=()=>({id:uuid(),name:'',purchaseStatus:'주문완료',shipping:'',extra:'',purchases:[],sales:[]});
-const lineUsed=r=>!!(r.name||r.price!==''||r.shipping||r.fee);
+const lineUsed=r=>!!(r.name.trim()||r.price!==''||r.shipping||r.fee);
 const groupUsed=g=>!!(g.name||g.shipping||g.extra||g.purchases.some(lineUsed)||g.sales.some(lineUsed));
 const moneyValid=v=>v===''||(/^\d+$/.test(String(v))&&Number.isSafeInteger(Number(v))&&Number(v)<=999999999999);
 function validGroup(g){return g&&typeof g.id==='string'&&typeof g.name==='string'&&moneyValid(g.shipping)&&moneyValid(g.extra)&&(!g.purchaseStatus||purchaseStates.includes(g.purchaseStatus))&&['purchases','sales'].every(side=>Array.isArray(g[side])&&g[side].every(r=>r&&typeof r.id==='string'&&typeof r.name==='string'&&moneyValid(r.price)&&(side==='purchases'?purchaseStates:saleStates).includes(r.status)&&(side!=='sales'||(moneyValid(r.shipping)))));}
@@ -43,13 +43,13 @@ function input(g,side,row,field,label,type='text',placeholder=''){
 function select(g,side,r,label){const states=side==='purchases'?purchaseStates:saleStates;return `<select data-group="${g.id}" data-side="${side}" data-id="${r.id}" data-field="status" aria-label="${label}">${states.map(s=>`<option ${r.status===s?'selected':''}>${s}</option>`).join('')}</select>`;}
 function rowCells(g,side,r,i){const buy=side==='purchases',label=`${groups.indexOf(g)+1}묶음 ${buy?'구매':'판매'} ${i+1}행`;
  if(!r)return `<td class="${buy?'purchase':'sale'}"></td><td class="${buy?'purchase':'sale'}"></td>`;
- return `<td class="${buy?'purchase':'sale'} product"><div class="product-cell">${input(g,side,r,'name',label+' 상품명','text',i===0?'상품명 입력':'')}<button class="delete-line" data-delete-line="${r.id}" data-group="${g.id}" data-side="${side}" aria-label="${label} 삭제" title="이 상품 삭제">×</button></div></td><td class="${buy?'purchase':'sale'} price">${input(g,side,r,'price',label+' 가격','number')}</td>`;
+ return `<td class="${buy?'purchase':'sale'} product"><div class="product-cell">${input(g,side,r,'name',label+' 상품명','text','상품명 입력')}<button class="delete-line" data-delete-line="${r.id}" data-group="${g.id}" data-side="${side}" aria-label="${label} 삭제" title="이 상품 삭제">×</button></div></td><td class="${buy?'purchase':'sale'} price">${input(g,side,r,'price',label+' 가격','number')}</td>`;
 }
 function purchaseStatus(g,index){return `<select data-group="${g.id}" data-side="group" data-id="" data-field="purchaseStatus" aria-label="${index}묶음 구매상황">${purchaseStates.map(s=>`<option ${g.purchaseStatus===s?'selected':''}>${s}</option>`).join('')}</select>`;}
 function sideTable(g,side){
  const buy=side==='purchases',rows=g[side],n=rows.length,index=groups.indexOf(g)+1;
  const widths=buy?[185,80,80,90,85]:[185,80,90,90,85];const total=widths.reduce((s,v)=>s+v,0);
- return `<table class="group-side" aria-label="${index}묶음 ${buy?'구매':'판매'} 내역"><colgroup>${widths.map(w=>`<col style="width:${w/total*100}%">`).join('')}</colgroup><tbody>${rows.map((r,i)=>`<tr class="data-row">${rowCells(g,side,r,i)}${buy?(i===0?`<td class="purchase shared" rowspan="${n}">${input(g,'group',null,'shipping',index+'묶음 배송비','number')}</td><td class="purchase total" rowspan="${n}" data-total="cost"></td><td class="purchase state" rowspan="${n}">${purchaseStatus(g,index)}</td>`:''):`${i===0?`<td class="sale total" rowspan="${n}" data-total="current"></td><td class="sale total" rowspan="${n}" data-total="expected"></td>`:''}<td class="sale state">${select(g,'sales',r,index+'묶음 판매 '+(i+1)+'행 판매상황')}</td>`}</tr>`).join('')}<tr class="add-row"><td colspan="5" class="add-line-cell"><button data-add-line="${side}" data-group="${g.id}" aria-label="${index}묶음 ${buy?'구매':'판매'} 행 추가">＋</button></td></tr></tbody></table>`;
+ return `<table class="group-side ${rows.length<Math.max(g.purchases.length,g.sales.length)?'shorter':''}" aria-label="${index}묶음 ${buy?'구매':'판매'} 내역"><colgroup>${widths.map(w=>`<col style="width:${w/total*100}%">`).join('')}</colgroup><tbody>${rows.map((r,i)=>`<tr class="data-row">${rowCells(g,side,r,i)}${buy?(i===0?`<td class="purchase shared" rowspan="${n}">${input(g,'group',null,'shipping',index+'묶음 배송비','number')}</td><td class="purchase total" rowspan="${n}" data-total="cost"></td><td class="purchase state" rowspan="${n}">${purchaseStatus(g,index)}</td>`:''):`${i===0?`<td class="sale total" rowspan="${n}" data-total="current"></td><td class="sale total" rowspan="${n}" data-total="expected"></td>`:''}<td class="sale state">${select(g,'sales',r,index+'묶음 판매 '+(i+1)+'행 판매상황')}</td>`}</tr>`).join('')}<tr class="add-row"><td colspan="5" class="add-line-cell"><button data-add-line="${side}" data-group="${g.id}" aria-label="${index}묶음 ${buy?'구매':'판매'} 행 추가">＋</button></td></tr></tbody></table>`;
 }
 function bodyHTML(g){const index=groups.indexOf(g)+1;return `<tbody data-body="${g.id}"><tr class="group-row"><td class="side-container" colspan="5">${sideTable(g,'purchases')}</td><td class="side-container" colspan="5">${sideTable(g,'sales')}</td><td class="difference total" data-total="currentDifference"></td><td class="difference total" data-total="expectedDifference"></td><td class="group-delete-cell"><button data-delete-group="${g.id}" aria-label="${index}묶음 삭제" title="묶음 삭제">×</button></td></tr></tbody>`;}
 function matches(g){return !groupUsed(g)||!query||[g.name,...g.purchases.map(r=>r.name),...g.sales.map(r=>r.name)].some(s=>s.toLowerCase().includes(query.toLowerCase()));}
@@ -64,7 +64,7 @@ function render(){document.querySelector('#app').innerHTML=`<header><a class="br
   const button=e.target.closest('[data-delete-group],[data-delete-line],[data-add-line]');if(!button)return;
   const id=button.dataset.deleteGroup||button.dataset.group;const g=groups.find(g=>g.id===id);const previous=structuredClone(groups);
   if(button.dataset.addLine){const row=blankLine(button.dataset.addLine);if(button.dataset.addLine==='purchases')row.status=g.purchaseStatus;g[button.dataset.addLine].push(row);}
-  else{if(!confirm(button.dataset.deleteGroup?'이 묶음의 구매·판매 기록을 모두 삭제할까요?':'이 상품 행을 삭제할까요?'))return;
+  else{const hasData=button.dataset.deleteGroup?groupUsed(g):lineUsed(g[button.dataset.side].find(r=>r.id===button.dataset.deleteLine));if(hasData&&!confirm(button.dataset.deleteGroup?'이 묶음의 구매·판매 기록을 모두 삭제할까요?':'이 상품 행을 삭제할까요?'))return;
    if(button.dataset.deleteGroup)groups=groups.filter(g=>g.id!==id);
    else{const side=button.dataset.side;g[side]=g[side].filter(r=>r.id!==button.dataset.deleteLine);if(!g[side].length)g[side].push(blankLine(side));}
   }
