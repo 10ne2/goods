@@ -4,7 +4,7 @@ export function totals(group) {
   const completed = group.sales.filter(row => row.status === '판매완료');
   const current = completed.reduce((sum, row) => sum + amount(row.price), 0);
   const expected = group.sales.reduce((sum, row) => sum + amount(row.price), 0);
-  const fees = rows => rows.reduce((sum, row) => sum + amount(row.shipping) + amount(row.fee), 0);
+  const fees = rows => rows.reduce((sum, row) => sum + amount(row.shipping), 0);
   return {cost, current, expected, currentDifference: cost - current + fees(completed), expectedDifference: cost - expected + fees(group.sales)};
 }
 export function migrate(items) {
