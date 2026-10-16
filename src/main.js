@@ -2,7 +2,7 @@ import {DEFAULT_MONTH, validMonth, monthOf, monthOptions} from './months.js';
 import {purchaseColor, saleColor} from './status-colors.js';
 import 'pretendard/dist/web/variable/pretendardvariable.css';
 import {formatMoney, readMoneyInput, enableCellEditing} from './sheet-utils.js';
-import {mountIndependent, setIndependentMonth, flushIndependent, independentCSVRows} from './independent.js';
+import {sizeIndependentColumns, mountIndependent, setIndependentMonth, flushIndependent, independentCSVRows} from './independent.js';
 import './style.css';
 import {totals, migrate} from './groups.js';
 const key='goods-ledger-groups-v2';
@@ -79,10 +79,12 @@ function sizeGroupColumns(){
  const totalWidth=groupColumnWidths.reduce((sum,value)=>sum+value,0);
  const tableWidth=Math.max(0,sheet.parentElement.clientWidth-1);
  const productWidth=266*Math.min(1,tableWidth/totalWidth);
+
  const otherWeight=totalWidth-groupColumnWidths[0]-groupColumnWidths[5];
  const scale=(tableWidth-productWidth*2)/otherWeight;
  sheet.style.width='100%';
  [...sheet.querySelector('colgroup').children].forEach((col,i)=>col.style.width=((i===0||i===5)?productWidth:groupColumnWidths[i]*scale)+'px');
+ sizeIndependentColumns();
 }
 function renderTable(){const sheet=document.querySelector('#sheet');const totalWidth=groupColumnWidths.reduce((sum,value)=>sum+value,0);sheet.style.width='100%';sheet.innerHTML=`<colgroup>${groupColumnWidths.map(w=>`<col style="width:${w/totalWidth*100}%">`).join('')}</colgroup><thead><tr class="bands"><th colspan="5" class="purchase">구매 내역</th><th colspan="5" class="sale">판매 내역</th><th colspan="2">차액</th><th colspan="2">실구매금액</th><th>월</th><th colspan="2" class="delete-heading" aria-label="묶음 관리"></th></tr><tr>${['상품명','가격','배송비','총합','구매상황','상품명','가격','현재총합','예상총합','판매상황','현재 차액','확정 차액','상품명','가격','월','',''].map((label,i)=>`<th scope="col" class="${i<5?'purchase':i<10?'sale':'difference'}">${label}</th>`).join('')}</tr></thead>${groups.filter(matches).map(bodyHTML).join('')}`;sizeGroupColumns();updateTotals();}
 function updateTotals(){const sum={cost:0,current:0,expected:0,expectedDifference:0};for(const g of groups){const t=totals(g);const body=document.querySelector(`[data-body="${g.id}"]`);updateColors(g,body);body?.classList.toggle('equal-group',groupUsed(g)&&t.currentDifference!==0&&t.currentDifference===t.expectedDifference);body?.querySelectorAll('[data-total]').forEach(el=>{const v=t[el.dataset.total];el.textContent=groupUsed(g)?fmt(v):'—';el.classList.toggle('recovered',el.dataset.total.includes('Difference')&&v<0);el.classList.toggle('equal-balance',el.classList.contains('difference')&&groupUsed(g)&&t.currentDifference!==0&&t.currentDifference===t.expectedDifference);});if(g.month===currentMonth)for(const k in sum)sum[k]+=t[k];}for(const [k,v]of Object.entries(sum))document.querySelector(`[data-summary="${k}"]`).textContent=fmt(v)+'원';}

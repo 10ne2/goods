@@ -44,15 +44,27 @@ function rowHTML(side, row, index) {
 }
 function tableHTML(side) {
   const buy = side === 'purchases';
-  return `<section class="independent-panel" aria-label="개별 ${buy ? '구매' : '판매'} 장부"><div class="individual-title-row"><h2 class="individual-title">개별 ${buy ? '구매' : '판매'} 테이블</h2><button data-independent-add="${side}" aria-label="개별 ${buy ? '구매' : '판매'} 행 추가">＋</button></div><table class="independent-sheet" data-independent-side="${side}"><colgroup><col><col class="money-column">${buy ? '<col class="money-column">' : ''}<col class="money-column"><col class="detail-column"><col class="detail-column"></colgroup><thead><tr class="bands"><th colspan="${buy ? 6 : 5}" class="${buy ? 'purchase' : 'sale'}"><div><span>개별 ${buy ? '구매' : '판매'} 내역</span></div></th></tr><tr>${['상품명', '가격', ...(buy ? ['배송비'] : []), buy ? '총 구매 비용' : '정산액', buy ? '구매상황' : '판매상황', '월'].map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${data[side].filter(row => row.month === currentMonth).map((row, index) => rowHTML(side, row, index)).join('')}</tbody></table><div class="independent-total" data-independent-summary="${side}"></div></section>`;
+  return `<section class="independent-panel" aria-label="개별 ${buy ? '구매' : '판매'} 장부"><div class="individual-title-row"><h2 class="individual-title">개별 ${buy ? '구매' : '판매'} 테이블</h2><button data-independent-add="${side}" aria-label="개별 ${buy ? '구매' : '판매'} 행 추가">＋</button></div><table class="independent-sheet" data-independent-side="${side}"><colgroup><col class="product-column"><col class="money-column">${buy ? '<col class="money-column">' : ''}<col class="money-column"><col class="detail-column"><col class="detail-column"></colgroup><thead><tr class="bands"><th colspan="${buy ? 6 : 5}" class="${buy ? 'purchase' : 'sale'}"><div><span>개별 ${buy ? '구매' : '판매'} 내역</span></div></th></tr><tr>${['상품명', '가격', ...(buy ? ['배송비'] : []), buy ? '총 구매 비용' : '정산액', buy ? '구매상황' : '판매상황', '월'].map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${data[side].filter(row => row.month === currentMonth).map((row, index) => rowHTML(side, row, index)).join('')}</tbody></table><div class="independent-total" data-independent-summary="${side}"></div></section>`;
 }
 function refreshTotals() {
   const totals = independentTotals(Object.fromEntries(sides.map(side => [side, data[side].filter(row => row.month === currentMonth)])));
   document.querySelector('[data-independent-summary=purchases]').textContent = `총 구매 비용 ${fmt(totals.purchases)}원`;
   document.querySelector('[data-independent-summary=sales]').textContent = `판매완료 정산액 ${fmt(totals.completed)}원 · 예상 정산액 ${fmt(totals.expected)}원`;
 }
+export function sizeIndependentColumns() {
+  const productWidth = document.querySelector('#sheet col')?.getBoundingClientRect().width;
+  if (!productWidth) return;
+  document.querySelectorAll('.independent-sheet').forEach(table => {
+    const moneyCount = table.dataset.independentSide === 'purchases' ? 3 : 2;
+    const moneyWidth = (table.parentElement.clientWidth - 1 - productWidth) / (moneyCount + 1.6);
+    [...table.querySelectorAll('col')].forEach((col, index) => {
+      col.style.width = (index === 0 ? productWidth : index <= moneyCount ? moneyWidth : moneyWidth * .8) + 'px';
+    });
+  });
+}
 function renderTables() {
   document.querySelector('.independent-grid').innerHTML = sides.map(tableHTML).join('');
+  sizeIndependentColumns();
   refreshTotals();
 }
 export function independentCSVRows() {
