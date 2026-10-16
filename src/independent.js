@@ -2,11 +2,11 @@ import {formatMoney, readMoneyInput, enableWheelScroll} from './sheet-utils.js';
 import {amount} from './groups.js';
 
 const key = 'goods-ledger-independent-v1';
-const states = {purchases: ['주문완료', '배송중', '수령완료'], sales: ['판매중', '예약중', '판매완료']};
+const states = {purchases: ['주문완료', '배송중', '수령완료'], sales: ['판매전', '판매중', '예약중', '판매완료']};
 const sides = ['purchases', 'sales'];
 const esc = value => String(value).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const fmt = value => new Intl.NumberFormat('ko-KR').format(value);
-const blank = side => ({id: crypto.randomUUID(), name: '', price: '', shipping: '', status: states[side][side === 'purchases' ? 2 : 0]});
+const blank = side => ({id: crypto.randomUUID(), name: '', price: '', shipping: '', status: states[side][0]});
 const used = row => row.name || row.price !== '' || row.shipping !== '';
 const validMoney = value => typeof value === 'string' && (value === '' || (/^\d+$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) <= 999999999999));
 export const rowTotal = (side, row) => side === 'purchases' ? amount(row.price) + amount(row.shipping) : amount(row.price) - amount(row.shipping);
@@ -37,11 +37,11 @@ function input(side, row, index, field, label, type = 'text') {
   return `<input data-independent-field="${field}" aria-label="개별 ${side === 'purchases' ? '구매' : '판매'} ${index + 1}행 ${label}" type="text" value="${esc(type === 'number' ? formatMoney(row[field]) : row[field])}" ${type === 'number' ? 'data-money inputmode="numeric" maxlength="20"' : 'maxlength="160"'} autocomplete="off">`;
 }
 function rowHTML(side, row, index) {
-  return `<tr data-independent-id="${esc(row.id)}"><td class="product">${input(side, row, index, 'name', '상품명')}</td><td class="price">${input(side, row, index, 'price', '가격', 'number')}</td><td class="price">${input(side, row, index, 'shipping', '배송비', 'number')}</td><td class="total" data-independent-total>${used(row) ? fmt(rowTotal(side, row)) : '—'}</td><td class="state"><select data-independent-field="status" aria-label="개별 ${side === 'purchases' ? '구매' : '판매'} ${index + 1}행 상황">${states[side].map(state => `<option ${state === row.status ? 'selected' : ''}>${state}</option>`).join('')}</select></td><td class="line-control"><button data-independent-delete="${esc(row.id)}" aria-label="개별 ${side === 'purchases' ? '구매' : '판매'} ${index + 1}행 삭제" title="행 삭제">×</button></td></tr>`;
+  return `<tr data-independent-id="${esc(row.id)}"><td class="product"><div class="product-cell">${input(side, row, index, 'name', '상품명')}<button class="delete-line" data-independent-delete="${esc(row.id)}" aria-label="개별 ${side === 'purchases' ? '구매' : '판매'} ${index + 1}행 삭제" title="행 삭제">×</button></div></td><td class="price">${input(side, row, index, 'price', '가격', 'number')}</td><td class="price">${input(side, row, index, 'shipping', '배송비', 'number')}</td><td class="total" data-independent-total>${used(row) ? fmt(rowTotal(side, row)) : '—'}</td><td class="state"><select data-independent-field="status" aria-label="개별 ${side === 'purchases' ? '구매' : '판매'} ${index + 1}행 상황">${states[side].map(state => `<option ${state === row.status ? 'selected' : ''}>${state}</option>`).join('')}</select></td></tr>`;
 }
 function tableHTML(side) {
   const buy = side === 'purchases';
-  return `<section class="independent-panel" aria-label="개별 ${buy ? '구매' : '판매'} 장부"><table class="independent-sheet" data-independent-side="${side}"><thead><tr class="bands"><th colspan="6" class="${buy ? 'purchase' : 'sale'}"><div><span>개별 ${buy ? '구매' : '판매'} 내역</span><button data-independent-add="${side}" aria-label="개별 ${buy ? '구매' : '판매'} 행 추가">＋</button></div></th></tr><tr>${['상품명', '가격', '배송비', buy ? '총 구매 비용' : '정산액', buy ? '구매상황' : '판매상황', ''].map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${data[side].map((row, index) => rowHTML(side, row, index)).join('')}</tbody></table><div class="independent-total" data-independent-summary="${side}"></div></section>`;
+  return `<section class="independent-panel" aria-label="개별 ${buy ? '구매' : '판매'} 장부"><table class="independent-sheet" data-independent-side="${side}"><thead><tr class="bands"><th colspan="5" class="${buy ? 'purchase' : 'sale'}"><div><span>개별 ${buy ? '구매' : '판매'} 내역</span><button data-independent-add="${side}" aria-label="개별 ${buy ? '구매' : '판매'} 행 추가">＋</button></div></th></tr><tr>${['상품명', '가격', '배송비', buy ? '총 구매 비용' : '정산액', buy ? '구매상황' : '판매상황'].map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${data[side].map((row, index) => rowHTML(side, row, index)).join('')}</tbody></table><div class="independent-total" data-independent-summary="${side}"></div></section>`;
 }
 function refreshTotals() {
   const totals = independentTotals(data);
