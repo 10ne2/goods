@@ -33,3 +33,4 @@ td:has(>input),td:has(>.product-cell){cursor:text}
 #sheet .product-cell .delete-line{width:10px;padding:0}
 
 #sheet th,#sheet td{overflow:hidden}#sheet input,#sheet select{min-width:0;max-width:100%}
+#sheet td select,#sheet td.month-cell select,.independent-sheet td select{display:inline-block;width:auto;max-width:100%;field-sizing:content;margin:0 auto;padding:2px 16px 2px 3px;text-align:center;text-align-last:center;background-position:right 3px center;vertical-align:middle}
