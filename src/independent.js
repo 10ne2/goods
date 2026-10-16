@@ -54,7 +54,8 @@ function refreshTotals() {
 export function sizeIndependentColumns() {
   const detailRatio = .75;
   document.querySelectorAll('.independent-sheet').forEach(table => {
-    const tableWidth = Math.max(0, table.parentElement.clientWidth - 1);
+    // Preserve fractional grid widths and reserve border/subpixel rounding space.
+    const tableWidth = Math.max(0, table.parentElement.getBoundingClientRect().width - 1.25);
     const productWidth = 266 * Math.min(1, tableWidth / 619);
     const moneyCount = table.dataset.independentSide === 'purchases' ? 3 : 2;
     const moneyWidth = (tableWidth - productWidth) / (moneyCount + detailRatio * 2);
