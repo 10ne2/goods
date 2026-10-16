@@ -52,13 +52,13 @@ function refreshTotals() {
   document.querySelector('[data-independent-summary=sales]').textContent = `판매완료 정산액 ${fmt(totals.completed)}원 · 예상 정산액 ${fmt(totals.expected)}원`;
 }
 export function sizeIndependentColumns() {
-  const productWidth = document.querySelector('#sheet col')?.getBoundingClientRect().width;
-  if (!productWidth) return;
+  const productWidth = 266;
+  const detailRatio = .75;
   document.querySelectorAll('.independent-sheet').forEach(table => {
     const moneyCount = table.dataset.independentSide === 'purchases' ? 3 : 2;
-    const moneyWidth = (table.parentElement.clientWidth - 1 - productWidth) / (moneyCount + 1.6);
+    const moneyWidth = (table.parentElement.clientWidth - 1 - productWidth) / (moneyCount + detailRatio * 2);
     [...table.querySelectorAll('col')].forEach((col, index) => {
-      col.style.width = (index === 0 ? productWidth : index <= moneyCount ? moneyWidth : moneyWidth * .8) + 'px';
+      col.style.width = (index === 0 ? productWidth : index <= moneyCount ? moneyWidth : moneyWidth * detailRatio) + 'px';
     });
   });
 }
