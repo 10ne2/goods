@@ -1,3 +1,4 @@
+import {formatMoney, readMoneyInput, enableWheelScroll} from './sheet-utils.js';
 import {amount} from './groups.js';
 
 const key = 'goods-ledger-independent-v1';
@@ -22,7 +23,7 @@ function valid(data) {
 let data = {purchases: [], sales: []}, blocked = false, timer, mounted = false;
 function message(text, error = false) {
   const node = document.querySelector('#independent-notice');
-  if (node) {node.textContent = text; node.classList.toggle('error', error);}
+  if (node) {node.textContent = error ? text : ''; node.classList.toggle('error', error);}
 }
 export function flushIndependent() {
   clearTimeout(timer);
@@ -33,7 +34,7 @@ export function flushIndependent() {
   catch {message('저장 실패 · 입력값은 화면에 유지됩니다. 저장 공간을 확인해주세요.', true); return false;}
 }
 function input(side, row, index, field, label, type = 'text') {
-  return `<input data-independent-field="${field}" aria-label="개별 ${side === 'purchases' ? '구매' : '판매'} ${index + 1}행 ${label}" type="${type}" value="${esc(row[field])}" ${type === 'number' ? 'min="0" max="999999999999" step="1" inputmode="numeric"' : 'maxlength="160"'} autocomplete="off">`;
+  return `<input data-independent-field="${field}" aria-label="개별 ${side === 'purchases' ? '구매' : '판매'} ${index + 1}행 ${label}" type="text" value="${esc(type === 'number' ? formatMoney(row[field]) : row[field])}" ${type === 'number' ? 'data-money inputmode="numeric" maxlength="20"' : 'maxlength="160"'} autocomplete="off">`;
 }
 function rowHTML(side, row, index) {
   return `<tr data-independent-id="${esc(row.id)}"><td class="product">${input(side, row, index, 'name', '상품명')}</td><td class="price">${input(side, row, index, 'price', '가격', 'number')}</td><td class="price">${input(side, row, index, 'shipping', '배송비', 'number')}</td><td class="total" data-independent-total>${used(row) ? fmt(rowTotal(side, row)) : '—'}</td><td class="state"><select data-independent-field="status" aria-label="개별 ${side === 'purchases' ? '구매' : '판매'} ${index + 1}행 상황">${states[side].map(state => `<option ${state === row.status ? 'selected' : ''}>${state}</option>`).join('')}</select></td><td class="line-control"><button data-independent-delete="${esc(row.id)}" aria-label="개별 ${side === 'purchases' ? '구매' : '판매'} ${index + 1}행 삭제" title="행 삭제">×</button></td></tr>`;
@@ -70,12 +71,14 @@ export function mountIndependent() {
     if (!element.matches('[data-independent-field]')) return;
     const side = element.closest('table').dataset.independentSide;
     const row = data[side].find(row => row.id === element.closest('tr').dataset.independentId);
-    row[element.dataset.independentField] = element.value;
-    element.setAttribute('aria-invalid', String(element.type === 'number' && !element.validity.valid));
+    row[element.dataset.independentField] = element.hasAttribute('data-money') ? readMoneyInput(element, event.isComposing) : element.value;
+    element.setAttribute('aria-invalid', String(element.hasAttribute('data-money') && !validMoney(row[element.dataset.independentField])));
     element.closest('tr').querySelector('[data-independent-total]').textContent = used(row) ? fmt(rowTotal(side, row)) : '—';
     refreshTotals(); message('개별 기록 저장 중…'); clearTimeout(timer); timer = setTimeout(flushIndependent, 350);
   }
   section.addEventListener('input', edit);
+  section.addEventListener('compositionend', edit);
+  enableWheelScroll(document.querySelector('.independent-scroll'));
   section.addEventListener('change', event => {if (event.target.tagName === 'SELECT') {edit(event); flushIndependent();}});
   section.addEventListener('focusout', event => {if (event.target.matches('[data-independent-field]')) flushIndependent();});
   section.addEventListener('keydown', event => {
