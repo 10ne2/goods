@@ -20,3 +20,6 @@ td:has(>input),td:has(>.product-cell){cursor:text}
 
 
 #sheet .group-confirm-cell{padding:0;text-align:center;vertical-align:middle}#sheet .group-confirm-cell button{display:block;width:100%;height:100%;min-height:24px;border:0;background:transparent;font-size:12px;padding:0}
+
+.month-nav{display:flex;align-items:center;gap:9px}.month-nav button{border:0;background:transparent;padding:4px 8px;font-size:22px;font-weight:400;line-height:28px}.month-nav #month-filter{appearance:none;background:none;border:0;border-radius:0;padding:0;width:62px;height:36px;text-align:center;text-align-last:center;font-size:22px;font-weight:500;cursor:pointer}
+#sheet td.equal-balance{background:#f0f0f0;color:#aaa}.independent-sheet .state{width:68px;min-width:0}.independent-sheet .month-cell{width:56px;min-width:0}
