@@ -6,7 +6,7 @@ import {mountIndependent, setIndependentMonth, flushIndependent, independentCSVR
 import './style.css';
 import {totals, migrate} from './groups.js';
 const key='goods-ledger-groups-v2';
-const groupColumnWidths=[270,84,84,84,56,270,84,84,84,56,84,84,135,84,56,56,56];
+const groupColumnWidths=[270,84,84,84,68,270,84,84,84,68,84,84,135,84,68,68,68];
 let currentMonth=DEFAULT_MONTH;
 try{const saved=localStorage.getItem('goods-ledger-month');if(validMonth(saved))currentMonth=saved;}catch{}
 const fmt=n=>new Intl.NumberFormat('ko-KR').format(n);
