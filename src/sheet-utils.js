@@ -22,3 +22,15 @@ export function enableWheelScroll(element) {
     if (target >= 0 && target !== element.scrollLeft) {event.preventDefault(); element.scrollLeft = target;}
   }, {passive: false});
 }
+
+export function enableCellEditing(root) {
+  root.addEventListener('click', event => {
+    if (event.target.closest('input,select,button,a')) return;
+    const cell = event.target.closest('td');
+    if (!cell || !root.contains(cell)) return;
+    const input = cell.querySelector('input:not([disabled]):not([readonly])');
+    if (!input) return;
+    input.focus({preventScroll: true});
+    input.setSelectionRange(input.value.length, input.value.length);
+  });
+}

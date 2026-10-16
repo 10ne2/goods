@@ -1,5 +1,5 @@
 import {purchaseColor, saleColor} from './status-colors.js';
-import {formatMoney, readMoneyInput, enableWheelScroll} from './sheet-utils.js';
+import {formatMoney, readMoneyInput, enableWheelScroll, enableCellEditing} from './sheet-utils.js';
 import {amount} from './groups.js';
 
 const key = 'goods-ledger-independent-v1';
@@ -66,6 +66,7 @@ export function mountIndependent() {
   const section = document.querySelector('#independent');
   section.innerHTML = `<div class="independent-heading"><span id="independent-notice" role="status" aria-live="polite"></span></div><div class="independent-scroll"><div class="independent-grid"></div></div>`;
   renderTables();
+  enableCellEditing(section);
   if (blocked) message('개별 기록을 읽지 못해 자동 저장을 중지했습니다.', true);
   function edit(event) {
     const element = event.target;
