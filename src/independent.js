@@ -1,6 +1,6 @@
 import {DEFAULT_MONTH, validMonth, monthOf, monthOptions} from './months.js';
 import {purchaseColor, saleColor} from './status-colors.js';
-import {formatMoney, readMoneyInput, enableWheelScroll, enableCellEditing} from './sheet-utils.js';
+import {formatMoney, readMoneyInput, enableCellEditing} from './sheet-utils.js';
 import {amount} from './groups.js';
 
 const key = 'goods-ledger-independent-v1';
@@ -52,11 +52,12 @@ function refreshTotals() {
   document.querySelector('[data-independent-summary=sales]').textContent = `판매완료 정산액 ${fmt(totals.completed)}원 · 예상 정산액 ${fmt(totals.expected)}원`;
 }
 export function sizeIndependentColumns() {
-  const productWidth = 266;
   const detailRatio = .75;
   document.querySelectorAll('.independent-sheet').forEach(table => {
+    const tableWidth = Math.max(0, table.parentElement.clientWidth - 1);
+    const productWidth = 266 * Math.min(1, tableWidth / 619);
     const moneyCount = table.dataset.independentSide === 'purchases' ? 3 : 2;
-    const moneyWidth = (table.parentElement.clientWidth - 1 - productWidth) / (moneyCount + detailRatio * 2);
+    const moneyWidth = (tableWidth - productWidth) / (moneyCount + detailRatio * 2);
     [...table.querySelectorAll('col')].forEach((col, index) => {
       col.style.width = (index === 0 ? productWidth : index <= moneyCount ? moneyWidth : moneyWidth * detailRatio) + 'px';
     });
@@ -96,7 +97,6 @@ export function mountIndependent(initialMonth = DEFAULT_MONTH) {
   }
   section.addEventListener('input', edit);
   section.addEventListener('compositionend', edit);
-  enableWheelScroll(document.querySelector('.independent-scroll'));
   section.addEventListener('change', event => {
     if (event.target.tagName !== 'SELECT') return;
     if (event.target.dataset.independentField === 'month') {
