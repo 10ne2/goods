@@ -63,7 +63,7 @@ export function mountIndependent() {
   for (const side of sides) if (!data[side].length) data[side].push(blank(side));
   mounted = true;
   const section = document.querySelector('#independent');
-  section.innerHTML = `<div class="independent-heading"><div><h2>개별 구매 · 판매</h2><p>묶음과 관계없이 구매만 하거나 판매만 하는 기록을 각각 입력하세요.</p></div><span id="independent-notice" role="status" aria-live="polite"></span></div><div class="independent-scroll"><div class="independent-grid"></div></div><p class="independent-help">구매 비용 = 가격 + 배송비 · 판매 정산액 = 가격 − 내가 부담한 배송비 · 각 표의 ＋로 행 추가</p>`;
+  section.innerHTML = `<div class="independent-heading"><div><h2>개별 구매 · 판매</h2><p>묶음과 관계없이 구매만 하거나 판매만 하는 기록을 각각 입력하세요.</p></div><span id="independent-notice" role="status" aria-live="polite"></span></div><div class="independent-scroll"><div class="independent-grid"></div></div>`;
   renderTables();
   if (blocked) message('개별 기록을 읽지 못해 자동 저장을 중지했습니다.', true);
   function edit(event) {
