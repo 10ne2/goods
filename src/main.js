@@ -1,4 +1,4 @@
-import {purchaseColor, saleColor, saleBands} from './status-colors.js';
+import {purchaseColor, saleColor} from './status-colors.js';
 import 'pretendard/dist/web/variable/pretendardvariable.css';
 import {formatMoney, readMoneyInput, enableWheelScroll, enableCellEditing} from './sheet-utils.js';
 import {mountIndependent, flushIndependent, independentCSVRows} from './independent.js';
@@ -54,7 +54,7 @@ function bodyHTML(g){
  return `<tbody data-body="${g.id}">${Array.from({length:n},(_,i)=>{
   const p=g.purchases[i],r=g.sales[i];
   const purchase=p?`${rowCells(g,'purchases',p,i)}${i===0?`<td class="purchase shared" rowspan="${pn}">${input(g,'group',null,'shipping',index+'묶음 배송비','number')}</td><td class="purchase total" rowspan="${pn}" data-total="cost"></td><td class="purchase state" rowspan="${pn}">${purchaseStatus(g,index)}</td>`:''}`:i===pn?add('purchases'):'<td colspan="5" class="side-spacer"></td>';
-  const sale=r?`${rowCells(g,'sales',r,i)}${i===0?`<td class="sale total sale-bands" rowspan="${sn}" data-total="current"></td><td class="sale total sale-bands" rowspan="${sn}" data-total="expected"></td>`:''}<td class="sale state">${select(g,'sales',r,index+'묶음 판매 '+(i+1)+'행 판매상황')}</td>`:i===sn?add('sales'):'<td colspan="5" class="side-spacer"></td>';
+  const sale=r?`${rowCells(g,'sales',r,i)}${i===0?`<td class="total" rowspan="${sn}" data-total="current"></td><td class="total" rowspan="${sn}" data-total="expected"></td>`:''}<td class="sale state">${select(g,'sales',r,index+'묶음 판매 '+(i+1)+'행 판매상황')}</td>`:i===sn?add('sales'):'<td colspan="5" class="side-spacer"></td>';
   return `<tr class="${i===0?'group-start ':''}${p||r?'data-row':'add-row'}" ${r?`data-sale-id="${r.id}"`:''}>${purchase}${sale}${i===0?`<td class="difference total" rowspan="${n}" data-total="currentDifference"></td><td class="difference total" rowspan="${n}" data-total="expectedDifference"></td><td class="group-delete-cell" rowspan="${n}"><button data-delete-group="${g.id}" aria-label="${index}묶음 삭제" title="묶음 삭제">×</button></td>`:''}</tr>`;
  }).join('')}</tbody>`;
 }
@@ -62,7 +62,6 @@ function updateColors(g,body){
  if(!body)return;
  body.style.setProperty('--purchase-fill',purchaseColor(g.purchaseStatus));
  for(const row of g.sales){const tr=body.querySelector(`[data-sale-id="${row.id}"]`);tr?.style.setProperty('--sale-fill',saleColor(row.status));}
- body.querySelectorAll('.sale-bands').forEach(cell=>cell.style.backgroundImage=saleBands(g.sales));
 }
 function matches(g){return !groupUsed(g)||!query||[g.name,...g.purchases.map(r=>r.name),...g.sales.map(r=>r.name)].some(s=>s.toLowerCase().includes(query.toLowerCase()));}
 function renderTable(){document.querySelector('#sheet').innerHTML=`<colgroup>${[270,0,0,0,0,270,0,0,0,0,0,0,24].map(w=>w?`<col style="width:${w}px">`:'<col>').join('')}</colgroup><thead><tr class="bands"><th colspan="5" class="purchase">구매 내역</th><th colspan="5" class="sale">판매 내역</th><th colspan="2">차액</th><th class="delete-heading" aria-label="묶음 관리"></th></tr><tr>${['상품명','가격','배송비','총합','구매상황','상품명','가격','현재총합','예상총합','판매상황','현재 차액','확정 차액',''].map((label,i)=>`<th scope="col" class="${i<5?'purchase':i<10?'sale':'difference'}">${label}</th>`).join('')}</tr></thead>${groups.filter(matches).map(bodyHTML).join('')}`;updateTotals();}
