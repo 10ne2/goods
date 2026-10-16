@@ -1,8 +1,9 @@
+import {purchaseColor, saleColor} from './status-colors.js';
 import {formatMoney, readMoneyInput, enableWheelScroll} from './sheet-utils.js';
 import {amount} from './groups.js';
 
 const key = 'goods-ledger-independent-v1';
-const states = {purchases: ['주문완료', '배송중', '수령완료'], sales: ['판매전', '판매중', '예약중', '판매완료']};
+const states = {purchases: ['주문완료', '배송중', '수령완료'], sales: ['판매전', '판매중', '배송중', '예약중', '판매완료']};
 const sides = ['purchases', 'sales'];
 const esc = value => String(value).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const fmt = value => new Intl.NumberFormat('ko-KR').format(value);
@@ -37,11 +38,11 @@ function input(side, row, index, field, label, type = 'text') {
   return `<input data-independent-field="${field}" aria-label="개별 ${side === 'purchases' ? '구매' : '판매'} ${index + 1}행 ${label}" type="text" value="${esc(type === 'number' ? formatMoney(row[field]) : row[field])}" ${type === 'number' ? 'data-money inputmode="text" lang="ko" maxlength="20"' : 'maxlength="160"'} placeholder="${field === 'name' ? '상품명 입력' : ''}" autocomplete="off">`;
 }
 function rowHTML(side, row, index) {
-  return `<tr data-independent-id="${esc(row.id)}"><td class="product"><div class="product-cell">${input(side, row, index, 'name', '상품명')}<button class="delete-line" data-independent-delete="${esc(row.id)}" aria-label="개별 ${side === 'purchases' ? '구매' : '판매'} ${index + 1}행 삭제" title="행 삭제">×</button></div></td><td class="price">${input(side, row, index, 'price', '가격', 'number')}</td><td class="price">${input(side, row, index, 'shipping', '배송비', 'number')}</td><td class="total" data-independent-total>${used(row) ? fmt(rowTotal(side, row)) : '—'}</td><td class="state"><select data-independent-field="status" aria-label="개별 ${side === 'purchases' ? '구매' : '판매'} ${index + 1}행 상황">${states[side].map(state => `<option ${state === row.status ? 'selected' : ''}>${state}</option>`).join('')}</select></td></tr>`;
+  return `<tr data-independent-id="${esc(row.id)}" style="--row-fill:${side === 'purchases' ? purchaseColor(row.status) : saleColor(row.status)}"><td class="product"><div class="product-cell">${input(side, row, index, 'name', '상품명')}<button class="delete-line" data-independent-delete="${esc(row.id)}" aria-label="개별 ${side === 'purchases' ? '구매' : '판매'} ${index + 1}행 삭제" title="행 삭제">×</button></div></td><td class="price">${input(side, row, index, 'price', '가격', 'number')}</td>${side === 'purchases' ? `<td class="price">${input(side, row, index, 'shipping', '배송비', 'number')}</td>` : ''}<td class="total" data-independent-total>${used(row) ? fmt(rowTotal(side, row)) : '—'}</td><td class="state"><select data-independent-field="status" aria-label="개별 ${side === 'purchases' ? '구매' : '판매'} ${index + 1}행 상황">${states[side].map(state => `<option ${state === row.status ? 'selected' : ''}>${state}</option>`).join('')}</select></td></tr>`;
 }
 function tableHTML(side) {
   const buy = side === 'purchases';
-  return `<section class="independent-panel" aria-label="개별 ${buy ? '구매' : '판매'} 장부"><div class="individual-title-row"><h2 class="individual-title">개별 ${buy ? '구매' : '판매'} 테이블</h2><button data-independent-add="${side}" aria-label="개별 ${buy ? '구매' : '판매'} 행 추가">＋</button></div><table class="independent-sheet" data-independent-side="${side}"><colgroup><col style="width:270px"><col><col><col><col></colgroup><thead><tr class="bands"><th colspan="5" class="${buy ? 'purchase' : 'sale'}"><div><span>개별 ${buy ? '구매' : '판매'} 내역</span></div></th></tr><tr>${['상품명', '가격', '배송비', buy ? '총 구매 비용' : '정산액', buy ? '구매상황' : '판매상황'].map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${data[side].map((row, index) => rowHTML(side, row, index)).join('')}</tbody></table><div class="independent-total" data-independent-summary="${side}"></div></section>`;
+  return `<section class="independent-panel" aria-label="개별 ${buy ? '구매' : '판매'} 장부"><div class="individual-title-row"><h2 class="individual-title">개별 ${buy ? '구매' : '판매'} 테이블</h2><button data-independent-add="${side}" aria-label="개별 ${buy ? '구매' : '판매'} 행 추가">＋</button></div><table class="independent-sheet" data-independent-side="${side}"><colgroup><col style="width:270px"><col>${buy ? '<col>' : ''}<col><col></colgroup><thead><tr class="bands"><th colspan="${buy ? 5 : 4}" class="${buy ? 'purchase' : 'sale'}"><div><span>개별 ${buy ? '구매' : '판매'} 내역</span></div></th></tr><tr>${['상품명', '가격', ...(buy ? ['배송비'] : []), buy ? '총 구매 비용' : '정산액', buy ? '구매상황' : '판매상황'].map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${data[side].map((row, index) => rowHTML(side, row, index)).join('')}</tbody></table><div class="independent-total" data-independent-summary="${side}"></div></section>`;
 }
 function refreshTotals() {
   const totals = independentTotals(data);
@@ -74,6 +75,7 @@ export function mountIndependent() {
     row[element.dataset.independentField] = element.hasAttribute('data-money') ? readMoneyInput(element, event.isComposing) : element.value;
     element.setAttribute('aria-invalid', String(element.hasAttribute('data-money') && !validMoney(row[element.dataset.independentField])));
     element.closest('tr').querySelector('[data-independent-total]').textContent = used(row) ? fmt(rowTotal(side, row)) : '—';
+    element.closest('tr').style.setProperty('--row-fill', side === 'purchases' ? purchaseColor(row.status) : saleColor(row.status));
     refreshTotals(); message('개별 기록 저장 중…'); clearTimeout(timer); timer = setTimeout(flushIndependent, 350);
   }
   section.addEventListener('input', edit);
