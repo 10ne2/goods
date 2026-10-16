@@ -1,13 +1,15 @@
+import {DEFAULT_MONTH, validMonth, monthOf} from './months.js';
 import {purchaseColor, saleColor} from './status-colors.js';
 import {formatMoney, readMoneyInput, enableWheelScroll, enableCellEditing} from './sheet-utils.js';
 import {amount} from './groups.js';
 
 const key = 'goods-ledger-independent-v1';
+let currentMonth = DEFAULT_MONTH;
 const states = {purchases: ['주문완료', '배송중', '수령완료'], sales: ['판매전', '판매중', '배송중', '예약중', '판매완료']};
 const sides = ['purchases', 'sales'];
 const esc = value => String(value).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const fmt = value => new Intl.NumberFormat('ko-KR').format(value);
-const blank = side => ({id: crypto.randomUUID(), name: '', price: '', shipping: '', status: states[side][0]});
+const blank = side => ({id: crypto.randomUUID(), month: currentMonth, name: '', price: '', shipping: '', status: states[side][0]});
 const used = row => row.name.trim() || row.price !== '' || row.shipping !== '';
 const validMoney = value => typeof value === 'string' && (value === '' || (/^\d+$/.test(value) && Number.isSafeInteger(Number(value)) && Number(value) <= 999999999999));
 export const rowTotal = (side, row) => side === 'purchases' ? amount(row.price) + amount(row.shipping) : amount(row.price) - amount(row.shipping);
@@ -19,7 +21,7 @@ export function independentTotals(data) {
   };
 }
 function valid(data) {
-  return data && sides.every(side => Array.isArray(data[side]) && data[side].every(row => row && typeof row.id === 'string' && typeof row.name === 'string' && validMoney(row.price) && validMoney(row.shipping) && states[side].includes(row.status)));
+  return data && sides.every(side => Array.isArray(data[side]) && data[side].every(row => row && typeof row.id === 'string' && typeof row.name === 'string' && (row.month === undefined || validMonth(row.month)) && validMoney(row.price) && validMoney(row.shipping) && states[side].includes(row.status)));
 }
 let data = {purchases: [], sales: []}, blocked = false, timer, mounted = false;
 function message(text, error = false) {
@@ -42,10 +44,10 @@ function rowHTML(side, row, index) {
 }
 function tableHTML(side) {
   const buy = side === 'purchases';
-  return `<section class="independent-panel" aria-label="개별 ${buy ? '구매' : '판매'} 장부"><div class="individual-title-row"><h2 class="individual-title">개별 ${buy ? '구매' : '판매'} 테이블</h2><button data-independent-add="${side}" aria-label="개별 ${buy ? '구매' : '판매'} 행 추가">＋</button></div><table class="independent-sheet" data-independent-side="${side}"><colgroup><col style="width:270px"><col>${buy ? '<col>' : ''}<col><col></colgroup><thead><tr class="bands"><th colspan="${buy ? 5 : 4}" class="${buy ? 'purchase' : 'sale'}"><div><span>개별 ${buy ? '구매' : '판매'} 내역</span></div></th></tr><tr>${['상품명', '가격', ...(buy ? ['배송비'] : []), buy ? '총 구매 비용' : '정산액', buy ? '구매상황' : '판매상황'].map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${data[side].map((row, index) => rowHTML(side, row, index)).join('')}</tbody></table><div class="independent-total" data-independent-summary="${side}"></div></section>`;
+  return `<section class="independent-panel" aria-label="개별 ${buy ? '구매' : '판매'} 장부"><div class="individual-title-row"><h2 class="individual-title">개별 ${buy ? '구매' : '판매'} 테이블</h2><button data-independent-add="${side}" aria-label="개별 ${buy ? '구매' : '판매'} 행 추가">＋</button></div><table class="independent-sheet" data-independent-side="${side}"><colgroup><col style="width:270px"><col>${buy ? '<col>' : ''}<col><col></colgroup><thead><tr class="bands"><th colspan="${buy ? 5 : 4}" class="${buy ? 'purchase' : 'sale'}"><div><span>개별 ${buy ? '구매' : '판매'} 내역</span></div></th></tr><tr>${['상품명', '가격', ...(buy ? ['배송비'] : []), buy ? '총 구매 비용' : '정산액', buy ? '구매상황' : '판매상황'].map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${data[side].filter(row => row.month === currentMonth).map((row, index) => rowHTML(side, row, index)).join('')}</tbody></table><div class="independent-total" data-independent-summary="${side}"></div></section>`;
 }
 function refreshTotals() {
-  const totals = independentTotals(data);
+  const totals = independentTotals(Object.fromEntries(sides.map(side => [side, data[side].filter(row => row.month === currentMonth)])));
   document.querySelector('[data-independent-summary=purchases]').textContent = `총 구매 비용 ${fmt(totals.purchases)}원`;
   document.querySelector('[data-independent-summary=sales]').textContent = `판매완료 정산액 ${fmt(totals.completed)}원 · 예상 정산액 ${fmt(totals.expected)}원`;
 }
@@ -54,14 +56,15 @@ function renderTables() {
   refreshTotals();
 }
 export function independentCSVRows() {
-  return sides.flatMap(side => data[side].filter(used).map(row => ['', side === 'purchases' ? '개별 구매' : '개별 판매', row.name, row.price, row.status, side === 'purchases' ? row.shipping : '', '', side === 'sales' ? row.shipping : '', side === 'purchases' ? rowTotal(side, row) : '', side === 'sales' && row.status === '판매완료' ? amount(row.price) : '', side === 'sales' ? amount(row.price) : '', '', '', '']));
+  return sides.flatMap(side => data[side].filter(used).map(row => ['', side === 'purchases' ? '개별 구매' : '개별 판매', row.name, row.price, row.status, side === 'purchases' ? row.shipping : '', '', side === 'sales' ? row.shipping : '', side === 'purchases' ? rowTotal(side, row) : '', side === 'sales' && row.status === '판매완료' ? amount(row.price) : '', side === 'sales' ? amount(row.price) : '', '', '', '', row.month]));
 }
-export function mountIndependent() {
+export function mountIndependent(initialMonth = DEFAULT_MONTH) {
+  currentMonth = initialMonth;
   try {
     const raw = localStorage.getItem(key);
     if (raw !== null) {const parsed = JSON.parse(raw); if (!valid(parsed)) throw Error(); data = parsed;}
   } catch {blocked = true;}
-  for (const side of sides) if (!data[side].length) data[side].push(blank(side));
+  for (const side of sides) {for (const row of data[side]) row.month = monthOf(row); if (!data[side].some(row => row.month === currentMonth)) data[side].push(blank(side));}
   mounted = true;
   const section = document.querySelector('#independent');
   section.innerHTML = `<div class="independent-heading"><span id="independent-notice" role="status" aria-live="polite"></span></div><div class="independent-scroll"><div class="independent-grid"></div></div>`;
@@ -98,10 +101,16 @@ export function mountIndependent() {
     const side = button.dataset.independentAdd || button.closest('table').dataset.independentSide;
     const previous = structuredClone(data);
     if (button.dataset.independentAdd) data[side].push(blank(side));
-    else {const row = data[side].find(row => row.id === button.dataset.independentDelete); if (used(row) && !confirm('이 개별 기록을 삭제할까요?')) return; data[side] = data[side].filter(row => row.id !== button.dataset.independentDelete); if (!data[side].length) data[side].push(blank(side));}
+    else {const row = data[side].find(row => row.id === button.dataset.independentDelete); if (used(row) && !confirm('이 개별 기록을 삭제할까요?')) return; data[side] = data[side].filter(row => row.id !== button.dataset.independentDelete); if (!data[side].some(row => row.month === currentMonth)) data[side].push(blank(side));}
     const saved = flushIndependent(); if (!saved) data = previous;
     renderTables();
     if (saved && button.dataset.independentAdd) document.querySelector(`[data-independent-side="${side}"] tbody tr:last-child input`)?.focus();
   });
   window.addEventListener('pagehide', flushIndependent);
+}
+
+export function setIndependentMonth(month) {
+  currentMonth = month;
+  for (const side of sides) if (!data[side].some(row => row.month === month)) data[side].push(blank(side));
+  renderTables();
 }
