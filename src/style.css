@@ -26,3 +26,5 @@ td:has(>input),td:has(>.product-cell){cursor:text}
 
 .page-title{flex-direction:column;align-items:stretch;gap:12px}.page-title .month-nav{align-self:center}.page-title .tools{align-self:flex-end}
 #sheet>tbody.equal-group td{background:#f0f0f0;color:#aaa}#sheet>tbody.equal-group :is(input,select,button){color:#aaa}#sheet>tbody.equal-group input::placeholder{color:#aaa}#sheet>tbody.equal-group select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 6 6.5 11 1.5' fill='none' stroke='%23aaa' stroke-width='1' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+
+#sheet{min-width:1826px}.actual-purchase input{width:100%}

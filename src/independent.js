@@ -56,7 +56,7 @@ function renderTables() {
   refreshTotals();
 }
 export function independentCSVRows() {
-  return sides.flatMap(side => data[side].filter(used).map(row => ['', side === 'purchases' ? '개별 구매' : '개별 판매', row.name, row.price, row.status, side === 'purchases' ? row.shipping : '', '', side === 'sales' ? row.shipping : '', side === 'purchases' ? rowTotal(side, row) : '', side === 'sales' && row.status === '판매완료' ? amount(row.price) : '', side === 'sales' ? amount(row.price) : '', '', '', '', row.month]));
+  return sides.flatMap(side => data[side].filter(used).map(row => ['', side === 'purchases' ? '개별 구매' : '개별 판매', row.name, row.price, row.status, side === 'purchases' ? row.shipping : '', '', side === 'sales' ? row.shipping : '', side === 'purchases' ? rowTotal(side, row) : '', side === 'sales' && row.status === '판매완료' ? amount(row.price) : '', side === 'sales' ? amount(row.price) : '', '', '', '', row.month, '', '']));
 }
 export function mountIndependent(initialMonth = DEFAULT_MONTH) {
   currentMonth = initialMonth;
