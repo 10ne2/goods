@@ -39,7 +39,7 @@ function status(text,error=false){const node=document.querySelector('#notice');i
 function flush(){clearTimeout(timer);if(blocked){status('기존 기록을 읽지 못해 자동 저장을 중지했습니다. 브라우저 데이터를 확인해주세요.',true);return false;}const data=storedGroups();if(!data.every(validGroup)){status('저장 대기 · 금액은 0 이상의 정수로 입력해주세요. 이전 저장 기록은 유지됩니다.',true);return false;}try{localStorage.setItem(key,JSON.stringify(data));status('✓ 자동 저장 완료');return true;}catch{status('저장 실패 · 입력은 화면에 유지됩니다. 브라우저 저장 공간을 확인해주세요.',true);return false;}}
 function input(g,side,row,field,label,type='text',placeholder=''){
  const source=side==='group'?g:row;
- return `<input data-group="${g.id}" data-side="${side}" data-id="${row?.id||''}" data-field="${field}" aria-label="${esc(label)}" type="text" value="${esc(type==='number'?formatMoney(source[field]):source[field])}" ${type==='number'?'data-money inputmode="numeric" maxlength="20"':'maxlength="160"'} placeholder="${esc(placeholder)}" autocomplete="off">`;
+ return `<input data-group="${g.id}" data-side="${side}" data-id="${row?.id||''}" data-field="${field}" aria-label="${esc(label)}" type="text" value="${esc(type==='number'?formatMoney(source[field]):source[field])}" ${type==='number'?'data-money inputmode="text" lang="ko" maxlength="20"':'maxlength="160"'} placeholder="${esc(placeholder)}" autocomplete="off">`;
 }
 function select(g,side,r,label){const states=side==='purchases'?purchaseStates:saleStates;return `<select data-group="${g.id}" data-side="${side}" data-id="${r.id}" data-field="status" aria-label="${label}">${states.map(s=>`<option ${r.status===s?'selected':''}>${s}</option>`).join('')}</select>`;}
 function rowCells(g,side,r,i){const buy=side==='purchases',label=`${groups.indexOf(g)+1}묶음 ${buy?'구매':'판매'} ${i+1}행`;
