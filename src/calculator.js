@@ -55,13 +55,9 @@ export function mountCalculator() {
       input.value = String(result);
     } catch (error) { output.textContent = error.message; }
   };
-  document.querySelector('#open-calculator').onclick = () => { dialog.showModal(); input.focus(); };
+  document.querySelector('#open-calculator').onclick = () => { if (!dialog.open) dialog.show(); input.focus(); };
   dialog.querySelector('[data-close]').onclick = () => dialog.close();
   dialog.addEventListener('click', event => {
-    if (event.target === dialog) {
-      const rect = dialog.getBoundingClientRect();
-      if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
-    }
     const key = event.target.closest('[data-key]')?.dataset.key;
     if (!key) return;
     if (key === '=') { solve(); return; }
@@ -75,4 +71,20 @@ export function mountCalculator() {
   });
   input.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === '=') { event.preventDefault(); solve(); } });
   input.addEventListener('input', () => { output.textContent = ''; });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && dialog.open) dialog.close();
+  });
+  const heading = dialog.querySelector('.calculator-heading');
+  heading.addEventListener('pointerdown', event => {
+    if (event.target.closest('button') || event.button !== 0) return;
+    const rect = dialog.getBoundingClientRect(), startX = event.clientX, startY = event.clientY;
+    heading.setPointerCapture(event.pointerId);
+    const move = next => {
+      dialog.style.left = Math.max(0, Math.min(window.innerWidth - rect.width, rect.left + next.clientX - startX)) + 'px';
+      dialog.style.top = Math.max(0, Math.min(window.innerHeight - rect.height, rect.top + next.clientY - startY)) + 'px';
+      dialog.style.right = 'auto';
+    };
+    heading.addEventListener('pointermove', move);
+    heading.addEventListener('lostpointercapture', () => heading.removeEventListener('pointermove', move), {once: true});
+  });
 }
