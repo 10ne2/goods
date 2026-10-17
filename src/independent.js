@@ -80,6 +80,9 @@ function refreshRows(side) {
     }
   }
 }
+export function independentDashboardTotals(month) {
+  return independentTotals(Object.fromEntries(sides.map(side => [side, data[side].filter(row => row.month === month)])));
+}
 export function independentIncoming(month) {
   return shippingTotal(data.sales.filter(row => row.month === month));
 }
