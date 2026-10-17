@@ -55,7 +55,7 @@ function rowHTML(side, row, index, members, position) {
 }
 function tableHTML(side) {
   const buy = side === 'purchases';
-  return `<section class="independent-panel" aria-label="개별 ${buy ? '구매' : '판매'} 장부"><div class="individual-title-row"><h2 class="individual-title">개별 ${buy ? '구매' : '판매'} 테이블</h2><button data-independent-add="${side}" aria-label="개별 ${buy ? '구매' : '판매'} 행 추가">＋</button><div class="bundle-actions"><button class="bundle-action" data-bundle-side="${side}" disabled>선택 묶기</button><button class="bundle-action" data-unbundle-side="${side}" disabled>묶음 해제</button></div></div><table class="independent-sheet" data-independent-side="${side}"><colgroup><col class="selection-column"><col class="product-column"><col class="money-column"><col class="money-column"><col class="money-column"><col class="detail-column"><col class="detail-column"></colgroup><thead><tr class="bands"><th colspan="7" class="${buy ? 'purchase' : 'sale'}"><div><span>개별 ${buy ? '구매' : '판매'} 내역</span></div></th></tr><tr>${['', '상품명', '가격', ...(buy ? ['배송비', '총 구매 비용'] : ['현재총합', '예상총합']), buy ? '구매상황' : '판매상황', '월'].map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${bundles(data[side].filter(row => row.month === currentMonth)).map(members => members.map((row, position) => rowHTML(side, row, data[side].indexOf(row), members, position)).join('')).join('')}</tbody></table><div class="independent-total" data-independent-summary="${side}"></div></section>`;
+  return `<section class="independent-panel" aria-label="개별 ${buy ? '구매' : '판매'} 장부"><div class="individual-title-row"><h2 class="individual-title">개별 ${buy ? '구매' : '판매'} 테이블</h2><button data-independent-add="${side}" aria-label="개별 ${buy ? '구매' : '판매'} 행 추가">＋</button><div class="bundle-actions"><button class="bundle-action" data-bundle-side="${side}" disabled>선택 묶기</button><button class="bundle-action" data-unbundle-side="${side}" disabled>묶음 해제</button></div></div><table class="independent-sheet" data-independent-side="${side}" style="--completed-sale-fill:${saleColor('판매완료')}"><colgroup><col class="selection-column"><col class="product-column"><col class="money-column"><col class="money-column"><col class="money-column"><col class="detail-column"><col class="detail-column"></colgroup><thead><tr class="bands"><th colspan="7" class="${buy ? 'purchase' : 'sale'}"><div><span>개별 ${buy ? '구매' : '판매'} 내역</span></div></th></tr><tr>${['', '상품명', '가격', ...(buy ? ['배송비', '총 구매 비용'] : ['현재총합', '예상총합']), buy ? '구매상황' : '판매상황', '월'].map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${bundles(data[side].filter(row => row.month === currentMonth)).map(members => members.map((row, position) => rowHTML(side, row, data[side].indexOf(row), members, position)).join('')).join('')}</tbody></table><div class="independent-total" data-independent-summary="${side}"></div></section>`;
 }
 function updateSelection() {
   for (const side of sides) {
@@ -66,9 +66,13 @@ function updateSelection() {
 }
 function refreshRows(side) {
   for (const members of bundles(data[side].filter(row => row.month === currentMonth))) {
+    const expected = members.reduce((sum, item) => sum + amount(item.price), 0);
+    const completed = members.filter(item => item.status === '판매완료').reduce((sum, item) => sum + amount(item.price), 0);
+    const equal = members.some(used) && completed === expected;
     for (const row of members) {
       const tr = document.querySelector(`[data-independent-id="${CSS.escape(row.id)}"]`);
       tr?.style.setProperty('--row-fill', side === 'purchases' ? purchaseColor(row.status) : saleColor(row.status));
+      tr?.querySelectorAll('.sales-total').forEach(cell => cell.classList.toggle('equal-sales-total', equal));
       const total = tr?.querySelector('[data-independent-total]');
       if (total) total.textContent = members.some(used) ? fmt(members.reduce((sum, item) => sum + (side === 'purchases' ? rowTotal(side, item) : amount(item.price)), 0)) : '—';
       const current = tr?.querySelector('[data-independent-current]');
@@ -102,6 +106,7 @@ export function sizeIndependentColumns() {
 function renderTables() {
   document.querySelector('.independent-grid').innerHTML = sides.map(tableHTML).join('');
   sizeIndependentColumns();
+  refreshRows('sales');
   refreshTotals();
   updateSelection();
 }
