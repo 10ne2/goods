@@ -1,3 +1,4 @@
+import {shippingTotal} from './incoming.js';
 import {bundles, mergeRows} from './independent-bundles.js';
 import {DEFAULT_MONTH, validMonth, monthOf, monthOptions} from './months.js';
 import {purchaseColor, saleColor} from './status-colors.js';
@@ -75,10 +76,14 @@ function refreshRows(side) {
     }
   }
 }
+export function independentIncoming(month) {
+  return shippingTotal(data.sales.filter(row => row.month === month));
+}
 function refreshTotals() {
   const totals = independentTotals(Object.fromEntries(sides.map(side => [side, data[side].filter(row => row.month === currentMonth)])));
   document.querySelector('[data-independent-summary=purchases]').textContent = `총 구매 비용 ${fmt(totals.purchases)}원`;
   document.querySelector('[data-independent-summary=sales]').textContent = `현재총합 ${fmt(totals.completed)}원 · 예상총합 ${fmt(totals.expected)}원`;
+  document.dispatchEvent(new Event('independent-totals-change'));
 }
 export function sizeIndependentColumns() {
   const detailRatio = .75;
@@ -208,7 +213,7 @@ export function mountIndependent(initialMonth = DEFAULT_MONTH) {
     }
     else {const row = data[side].find(row => row.id === button.dataset.independentDelete); if (used(row) && !confirm('이 개별 기록을 삭제할까요?')) return; const remaining = data[side].filter(item => item.id !== row.id && row.bundleId && item.bundleId === row.bundleId); if (side === 'purchases' && remaining.length && row.shipping) remaining[0].shipping = String(amount(remaining[0].shipping) + amount(row.shipping)); data[side] = data[side].filter(row => row.id !== button.dataset.independentDelete); if (!data[side].some(row => row.month === currentMonth)) data[side].push(blank(side));}
     const saved = flushIndependent(); if (!saved) data = previous;
-    if (saved && inserted?.bundleId) selected[side].add(inserted.id);
+    if (saved && inserted) { selected[side].clear(); selectionAnchor[side] = null; }
     renderTables();
     if (saved && inserted) document.querySelector(`[data-independent-id="${inserted.id}"] [data-independent-field="name"]`)?.focus();
   });
