@@ -1,3 +1,4 @@
+import {mountDropdowns} from './dropdowns.js';
 import {mountCalculator} from './calculator.js';
 import {DEFAULT_MONTH, validMonth, monthOf, monthOptions} from './months.js';
 import {purchaseColor, saleColor} from './status-colors.js';
@@ -122,3 +123,4 @@ function exportCSV(){const cell=v=>'"'+String(v??'').replace(/^[=+@\-\t\r]/,"'$&
 window.addEventListener('pagehide',flush);
 render();
 mountCalculator();
+mountDropdowns();
