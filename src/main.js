@@ -81,10 +81,11 @@ function sizeGroupColumns(){
  const tableWidth=Math.max(0,sheet.parentElement.clientWidth-1);
  const productWidth=266*Math.min(1,tableWidth/totalWidth);
 
- const otherWeight=totalWidth-groupColumnWidths[0]-groupColumnWidths[5];
- const scale=(tableWidth-productWidth*2)/otherWeight;
+ const statusWidth=72*Math.min(1,tableWidth/1000);
+ const otherWeight=totalWidth-groupColumnWidths[0]-groupColumnWidths[5]-groupColumnWidths[4]-groupColumnWidths[9];
+ const scale=(tableWidth-productWidth*2-statusWidth*2)/otherWeight;
  sheet.style.width='100%';
- [...sheet.querySelector('colgroup').children].forEach((col,i)=>col.style.width=((i===0||i===5)?productWidth:groupColumnWidths[i]*scale)+'px');
+ [...sheet.querySelector('colgroup').children].forEach((col,i)=>col.style.width=((i===0||i===5)?productWidth:(i===4||i===9)?statusWidth:groupColumnWidths[i]*scale)+'px');
  sizeIndependentColumns();
 }
 function renderTable(){const sheet=document.querySelector('#sheet');const totalWidth=groupColumnWidths.reduce((sum,value)=>sum+value,0);sheet.style.width='100%';sheet.innerHTML=`<colgroup>${groupColumnWidths.map(w=>`<col style="width:${w/totalWidth*100}%">`).join('')}</colgroup><thead><tr class="bands"><th colspan="5" class="purchase">구매 내역</th><th colspan="5" class="sale">판매 내역</th><th colspan="2">차액</th><th colspan="2">실구매금액</th><th>월</th><th colspan="2" class="delete-heading" aria-label="묶음 관리"></th></tr><tr>${['상품명','가격','배송비','총합','구매상황','상품명','가격','현재총합','예상총합','판매상황','현재 차액','확정 차액','상품명','가격','월','',''].map((label,i)=>`<th scope="col" class="${i<5?'purchase':i<10?'sale':'difference'}">${label}</th>`).join('')}</tr></thead>${groups.filter(matches).map(bodyHTML).join('')}`;sizeGroupColumns();updateTotals();}

@@ -7,6 +7,7 @@ import {amount} from './groups.js';
 const key = 'goods-ledger-independent-v1';
 let currentMonth = DEFAULT_MONTH;
 const selected = {purchases: new Set(), sales: new Set()};
+const selectionAnchor = {purchases: null, sales: null};
 const states = {purchases: ['주문완료', '배송중', '수령완료'], sales: ['판매전', '판매중', '배송중', '예약중', '판매완료']};
 const sides = ['purchases', 'sales'];
 const esc = value => String(value).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
@@ -46,11 +47,11 @@ function rowHTML(side, row, index, members, position) {
   const status = `<td class="state" ${buy ? `rowspan="${span}"` : ''}><select data-independent-field="status" aria-label="개별 ${buy ? '구매' : '판매'} ${index + 1}행 상황">${states[side].map(state => `<option ${state === row.status ? 'selected' : ''}>${state}</option>`).join('')}</select></td>`;
   const month = `<td class="month-cell" ${buy ? `rowspan="${span}"` : ''}><select data-independent-field="month" aria-label="개별 ${buy ? '구매' : '판매'} ${index+1}행 월">${monthOptions(row.month)}</select></td>`;
   const total = first ? `<td class="total" rowspan="${span}" data-independent-total>${members.some(used) ? fmt(members.reduce((sum, item) => sum + rowTotal(side, item), 0)) : '—'}</td>` : '';
-  return `<tr data-independent-id="${esc(row.id)}" class="${row.bundleId ? 'independent-bundled' : ''} ${first && row.bundleId ? 'bundle-start' : ''}" style="--row-fill:${buy ? purchaseColor(row.status) : saleColor(row.status)}"><td class="product"><div class="product-cell"><input type="checkbox" data-select-row="${esc(row.id)}" aria-label="개별 ${buy ? '구매' : '판매'} ${index+1}행 선택" ${selected[side].has(row.id) ? 'checked' : ''}>${input(side, row, index, 'name', '상품명')}<button class="delete-line" data-independent-delete="${esc(row.id)}" aria-label="개별 ${buy ? '구매' : '판매'} ${index + 1}행 삭제" title="행 삭제">×</button></div></td><td class="price">${input(side, row, index, 'price', '가격', 'number')}</td>${buy && first ? `<td class="price" rowspan="${span}">${input(side, row, index, 'shipping', '배송비', 'number')}</td>` : ''}${total}${!buy || first ? status + month : ''}</tr>`;
+  return `<tr data-independent-id="${esc(row.id)}" class="${row.bundleId ? 'independent-bundled' : ''} ${first && row.bundleId ? 'bundle-start' : ''}" style="--row-fill:${buy ? purchaseColor(row.status) : saleColor(row.status)}"><td class="selection-cell"><button type="button" role="checkbox" aria-checked="${selected[side].has(row.id)}" data-select-row="${esc(row.id)}" aria-label="개별 ${buy ? '구매' : '판매'} ${index+1}행 선택">${selected[side].has(row.id) ? '✓' : ''}</button></td><td class="product"><div class="product-cell">${input(side, row, index, 'name', '상품명')}<button class="delete-line" data-independent-delete="${esc(row.id)}" aria-label="개별 ${buy ? '구매' : '판매'} ${index + 1}행 삭제" title="행 삭제">×</button></div></td><td class="price">${input(side, row, index, 'price', '가격', 'number')}</td>${buy && first ? `<td class="price" rowspan="${span}">${input(side, row, index, 'shipping', '배송비', 'number')}</td>` : ''}${total}${!buy || first ? status + month : ''}</tr>`;
 }
 function tableHTML(side) {
   const buy = side === 'purchases';
-  return `<section class="independent-panel" aria-label="개별 ${buy ? '구매' : '판매'} 장부"><div class="individual-title-row"><h2 class="individual-title">개별 ${buy ? '구매' : '판매'} 테이블</h2><button data-independent-add="${side}" aria-label="개별 ${buy ? '구매' : '판매'} 행 추가">＋</button><button class="bundle-action" data-bundle-side="${side}" disabled>선택 묶기</button><button class="bundle-action" data-unbundle-side="${side}" disabled>묶음 해제</button></div><table class="independent-sheet" data-independent-side="${side}"><colgroup><col class="product-column"><col class="money-column">${buy ? '<col class="money-column">' : ''}<col class="money-column"><col class="detail-column"><col class="detail-column"></colgroup><thead><tr class="bands"><th colspan="${buy ? 6 : 5}" class="${buy ? 'purchase' : 'sale'}"><div><span>개별 ${buy ? '구매' : '판매'} 내역</span></div></th></tr><tr>${['상품명', '가격', ...(buy ? ['배송비'] : []), buy ? '총 구매 비용' : '정산액', buy ? '구매상황' : '판매상황', '월'].map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${bundles(data[side].filter(row => row.month === currentMonth)).map(members => members.map((row, position) => rowHTML(side, row, data[side].indexOf(row), members, position)).join('')).join('')}</tbody></table><div class="independent-total" data-independent-summary="${side}"></div></section>`;
+  return `<section class="independent-panel" aria-label="개별 ${buy ? '구매' : '판매'} 장부"><div class="individual-title-row"><h2 class="individual-title">개별 ${buy ? '구매' : '판매'} 테이블</h2><button data-independent-add="${side}" aria-label="개별 ${buy ? '구매' : '판매'} 행 추가">＋</button><div class="bundle-actions"><button class="bundle-action" data-bundle-side="${side}" disabled>선택 묶기</button><button class="bundle-action" data-unbundle-side="${side}" disabled>묶음 해제</button></div></div><table class="independent-sheet" data-independent-side="${side}"><colgroup><col class="selection-column"><col class="product-column"><col class="money-column">${buy ? '<col class="money-column">' : ''}<col class="money-column"><col class="detail-column"><col class="detail-column"></colgroup><thead><tr class="bands"><th colspan="${buy ? 7 : 6}" class="${buy ? 'purchase' : 'sale'}"><div><span>개별 ${buy ? '구매' : '판매'} 내역</span></div></th></tr><tr>${['', '상품명', '가격', ...(buy ? ['배송비'] : []), buy ? '총 구매 비용' : '정산액', buy ? '구매상황' : '판매상황', '월'].map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${bundles(data[side].filter(row => row.month === currentMonth)).map(members => members.map((row, position) => rowHTML(side, row, data[side].indexOf(row), members, position)).join('')).join('')}</tbody></table><div class="independent-total" data-independent-summary="${side}"></div></section>`;
 }
 function updateSelection() {
   for (const side of sides) {
@@ -81,9 +82,10 @@ export function sizeIndependentColumns() {
     const tableWidth = Math.max(0, table.parentElement.getBoundingClientRect().width - 1.25);
     const productWidth = 266 * Math.min(1, tableWidth / 619);
     const moneyCount = table.dataset.independentSide === 'purchases' ? 3 : 2;
-    const moneyWidth = (tableWidth - productWidth) / (moneyCount + detailRatio * 2);
+    const selectionWidth = 26 * Math.min(1, tableWidth / 619);
+    const moneyWidth = (tableWidth - productWidth - selectionWidth) / (moneyCount + detailRatio * 2);
     [...table.querySelectorAll('col')].forEach((col, index) => {
-      col.style.width = (index === 0 ? productWidth : index <= moneyCount ? moneyWidth : moneyWidth * detailRatio) + 'px';
+      col.style.width = (index === 0 ? selectionWidth : index === 1 ? productWidth : index <= moneyCount + 1 ? moneyWidth : moneyWidth * detailRatio) + 'px';
     });
   });
 }
@@ -125,11 +127,6 @@ export function mountIndependent(initialMonth = DEFAULT_MONTH) {
   section.addEventListener('input', edit);
   section.addEventListener('compositionend', edit);
   section.addEventListener('change', event => {
-    if (event.target.matches('[data-select-row]')) {
-      const side = event.target.closest('table').dataset.independentSide, id = event.target.dataset.selectRow;
-      if (event.target.checked) selected[side].add(id); else selected[side].delete(id);
-      updateSelection(); return;
-    }
     if (event.target.tagName !== 'SELECT') return;
     if (event.target.dataset.independentField === 'month') {
       const side = event.target.closest('table').dataset.independentSide;
@@ -152,13 +149,30 @@ export function mountIndependent(initialMonth = DEFAULT_MONTH) {
     if (next) {event.preventDefault(); next.focus(); if (next.type === 'text') next.select();}
   });
   section.addEventListener('click', event => {
+    const check = event.target.closest('[data-select-row]');
+    if (check) {
+      const side = check.closest('table').dataset.independentSide;
+      const visible = data[side].filter(row => row.month === currentMonth);
+      const id = check.dataset.selectRow, checked = !selected[side].has(id);
+      let range = [id];
+      const anchor = visible.findIndex(row => row.id === selectionAnchor[side]), end = visible.findIndex(row => row.id === id);
+      if (event.shiftKey && anchor >= 0) range = visible.slice(Math.min(anchor, end), Math.max(anchor, end) + 1).map(row => row.id);
+      range.forEach(value => { if (checked) selected[side].add(value); else selected[side].delete(value); });
+      if (!event.shiftKey || anchor < 0) selectionAnchor[side] = id;
+      check.closest('table').querySelectorAll('[data-select-row]').forEach(button => {
+        const active = selected[side].has(button.dataset.selectRow);
+        button.setAttribute('aria-checked', String(active)); button.textContent = active ? '✓' : '';
+      });
+      updateSelection(); return;
+    }
     const action = event.target.closest('[data-bundle-side],[data-unbundle-side]');
     if (action) {
       const side = action.dataset.bundleSide || action.dataset.unbundleSide;
       const previous = structuredClone(data);
       if (action.dataset.bundleSide) {
         if (!valid(data)) { message('금액 입력을 확인한 후 묶어주세요.', true); return; }
-        data[side] = mergeRows(data[side], selected[side], side, crypto.randomUUID());
+        try { data[side] = mergeRows(data[side], selected[side], side, crypto.randomUUID()); }
+        catch (error) { message(error.message, true); return; }
       } else {
         const ids = new Set(data[side].filter(row => selected[side].has(row.id)).map(row => row.bundleId).filter(Boolean));
         data[side].filter(row => ids.has(row.bundleId)).forEach(row => delete row.bundleId);

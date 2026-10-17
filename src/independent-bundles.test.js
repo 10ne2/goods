@@ -15,9 +15,9 @@ test('purchase bundling preserves all prices and total shipping with shared stat
   assert.equal(rows[1].shipping, '400');
 });
 test('sales bundling preserves individual statuses, amounts and shipping', () => {
-  const result = mergeRows(rows, new Set(['a','c']), 'sales', 'sale');
-  assert.deepEqual(result.map(row => row.id), ['a','c','b']);
-  assert.equal(result[1].status, '수령완료');
+  const result = mergeRows(rows, new Set(['a','b']), 'sales', 'sale');
+  assert.deepEqual(result.map(row => row.id), ['a','b','c']);
+  assert.equal(result[1].status, '주문완료');
   assert.equal(result[0].shipping, '300');
 });
 test('merging an existing bundle includes all members without duplicating shipping', () => {
@@ -26,4 +26,13 @@ test('merging an existing bundle includes all members without duplicating shippi
   assert.equal(bundles(result).length, 1);
   assert.equal(result.reduce((sum,row) => sum + Number(row.shipping),0), 700);
   assert.equal(result.length, 3);
+});
+
+test('nonadjacent selections cannot reorder products', () => {
+  assert.throws(() => mergeRows(rows, new Set(['a','c']), 'sales', 'sale'), /연속된 상품/);
+  assert.deepEqual(rows.map(row => row.id), ['a','b','c']);
+});
+test('display groups never reorder disconnected records', () => {
+  const input = [{id:'a',bundleId:'g'},{id:'b'},{id:'c',bundleId:'g'}];
+  assert.deepEqual(bundles(input).flat().map(row => row.id), ['a','b','c']);
 });
