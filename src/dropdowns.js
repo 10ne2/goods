@@ -28,12 +28,15 @@ export function mountDropdowns() {
       return button;
     }));
     list.setAttribute('aria-label', select.getAttribute('aria-label') || '선택');
-    list.style.width = (rect.width + 1) + 'px';
-    list.style.left = rect.left + 'px';
+    const groupedSale = select.matches('#sheet select[data-side="sales"]');
+    const independentSale = !!select.closest('[data-independent-side="sales"]');
+    // Collapsed cell borders differ at the sales section and table edges.
+    list.style.width = (rect.width + 1 + (groupedSale ? 1 : 0)) + 'px';
+    list.style.left = (rect.left - (groupedSale || independentSale ? 1 : 0)) + 'px';
     const below = window.innerHeight - rect.bottom - 4, above = rect.top - 4;
     const height = Math.min(select.options.length * 28 + 2, 280, Math.max(below, above));
     list.style.maxHeight = Math.max(28, height) + 'px';
-    list.style.top = (below >= height ? rect.bottom - 1 : Math.max(0, rect.top - height - 1)) + 'px';
+    list.style.top = (below >= height ? rect.bottom - 1 : Math.max(0, rect.top - height)) + 'px';
     list.hidden = false;
     list.showPopover();
     select.setAttribute('aria-expanded', 'true');
