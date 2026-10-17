@@ -73,6 +73,20 @@ export function mountCalculator() {
   input.addEventListener('input', () => { output.textContent = ''; });
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && dialog.open) dialog.close();
+    if (!dialog.open || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+    const target = event.target;
+    if (target.matches('input,textarea,select') || target.isContentEditable) return;
+    if (/^[0-9.+*/%()=−×÷-]$/.test(event.key)) {
+      event.preventDefault();
+      input.focus();
+      if (event.key === '=') solve();
+      else { input.setRangeText(event.key, input.selectionStart, input.selectionEnd, 'end'); output.textContent = ''; }
+    } else if (event.key === 'Enter') { event.preventDefault(); solve(); input.focus(); }
+    else if (event.key === 'Backspace') {
+      event.preventDefault(); input.focus();
+      const start = input.selectionStart, end = input.selectionEnd;
+      input.setRangeText('', start === end ? Math.max(0, start - 1) : start, end, 'end'); output.textContent = '';
+    }
   });
   const heading = dialog.querySelector('.calculator-heading');
   heading.addEventListener('pointerdown', event => {
