@@ -1,3 +1,4 @@
+import {createTabStorage, preserveEditor} from './tab-storage.js';
 import {shippingTotal} from './incoming.js';
 import {bundles, mergeRows} from './independent-bundles.js';
 import {DEFAULT_MONTH, validMonth, monthOf, monthOptions} from './months.js';
@@ -27,7 +28,7 @@ export function independentTotals(data) {
 function valid(data) {
   return data && sides.every(side => Array.isArray(data[side]) && data[side].every(row => row && typeof row.id === 'string' && typeof row.name === 'string' && (row.bundleId === undefined || typeof row.bundleId === 'string') && (row.month === undefined || validMonth(row.month)) && validMoney(row.price) && validMoney(row.shipping) && states[side].includes(row.status)));
 }
-let data = {purchases: [], sales: []}, blocked = false, timer, mounted = false;
+let data = {purchases: [], sales: []}, blocked = false, timer, mounted = false, tabStorage;
 function message(text, error = false) {
   const node = document.querySelector('#independent-notice');
   if (node) {node.textContent = error ? text : ''; node.classList.toggle('error', error);}
@@ -37,7 +38,11 @@ export function flushIndependent() {
   if (!mounted) return false;
   if (blocked) {message('개별 기록을 읽지 못해 자동 저장을 중지했습니다.', true); return false;}
   if (!valid(data)) {message('저장 대기 · 금액은 0 이상의 정수로 입력해주세요.', true); return false;}
-  try {localStorage.setItem(key, JSON.stringify(data)); message('✓ 개별 기록 자동 저장 완료'); return true;}
+  try {
+    if (tabStorage) tabStorage.save(data).then(() => message('✓ 개별 기록 자동 저장 완료')).catch(() => message('저장 실패 · 입력값은 화면에 유지됩니다. 저장 공간을 확인해주세요.', true));
+    else { localStorage.setItem(key, JSON.stringify(data)); message('✓ 개별 기록 자동 저장 완료'); }
+    return true;
+  }
   catch {message('저장 실패 · 입력값은 화면에 유지됩니다. 저장 공간을 확인해주세요.', true); return false;}
 }
 function input(side, row, index, field, label, type = 'text') {
@@ -118,9 +123,10 @@ export function independentCSVRows() {
 }
 export function mountIndependent(initialMonth = DEFAULT_MONTH) {
   currentMonth = initialMonth;
+  let initialSavedData = {purchases: [], sales: []};
   try {
     const raw = localStorage.getItem(key);
-    if (raw !== null) {const parsed = JSON.parse(raw); if (!valid(parsed)) throw Error(); data = parsed;}
+    if (raw !== null) {const parsed = JSON.parse(raw); if (!valid(parsed)) throw Error(); data = parsed; initialSavedData = structuredClone(parsed);}
   } catch {blocked = true;}
   for (const side of sides) {for (const row of data[side]) row.month = monthOf(row); if (!data[side].some(row => row.month === currentMonth)) data[side].push(blank(side));}
   mounted = true;
@@ -225,6 +231,21 @@ export function mountIndependent(initialMonth = DEFAULT_MONTH) {
     renderTables();
     if (saved && inserted) document.querySelector(`[data-independent-id="${inserted.id}"] [data-independent-field="name"]`)?.focus();
   });
+  if (!blocked) {
+    tabStorage = createTabStorage({key, empty: {purchases: [], sales: []}, initialBase: initialSavedData, valid,
+      getValue: () => data,
+      onValue: next => {
+        data = next;
+        sides.forEach(side => {
+          const ids = new Set(data[side].map(row => row.id));
+          for (const id of selected[side]) if (!ids.has(id)) selected[side].delete(id);
+          if (!ids.has(selectionAnchor[side])) selectionAnchor[side] = null;
+        });
+        preserveEditor(section, renderTables);
+      },
+      onError: error => message(error.message, true), onFlush: flushIndependent});
+    tabStorage.initialize().catch(error => message(error.message, true));
+  }
   window.addEventListener('pagehide', flushIndependent);
 }
 

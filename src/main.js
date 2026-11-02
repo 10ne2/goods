@@ -1,3 +1,4 @@
+import {createTabStorage, preserveEditor} from './tab-storage.js';
 import {shippingTotal} from './incoming.js';
 import {mountDropdowns} from './dropdowns.js';
 import {mountCalculator} from './calculator.js';
@@ -24,10 +25,10 @@ const lineUsed=r=>!!(r.name.trim()||r.price!==''||r.shipping||r.fee||r.actualNam
 const groupUsed=g=>!!(g.name||g.shipping||g.extra||g.purchases.some(lineUsed)||g.sales.some(lineUsed)||g.actualPurchases?.some(lineUsed));
 const moneyValid=v=>v===''||(/^\d+$/.test(String(v))&&Number.isSafeInteger(Number(v))&&Number(v)<=999999999999);
 function validGroup(g){return g&&typeof g.id==='string'&&typeof g.name==='string'&&(g.actualPurchases===undefined||(Array.isArray(g.actualPurchases)&&g.actualPurchases.every(r=>r&&typeof r.id==='string'&&typeof r.name==='string'&&moneyValid(r.price))))&&(g.confirmed===undefined||typeof g.confirmed==='boolean')&&(g.month===undefined||validMonth(g.month))&&moneyValid(g.shipping)&&moneyValid(g.extra)&&(!g.purchaseStatus||purchaseStates.includes(g.purchaseStatus))&&['purchases','sales'].every(side=>Array.isArray(g[side])&&g[side].every(r=>r&&typeof r.id==='string'&&typeof r.name==='string'&&(r.actualName===undefined||typeof r.actualName==='string')&&(r.actualPrice===undefined||moneyValid(r.actualPrice))&&moneyValid(r.price)&&(side==='purchases'?purchaseStates:saleStates).includes(r.status)&&(side!=='sales'||(moneyValid(r.shipping)))));}
-let groups=[],blocked=false,timer,query='';
+let groups=[],initialSavedGroups=[],blocked=false,timer,query='',tabStorage;
 try{
  const stored=localStorage.getItem(key);
- if(stored!==null){const parsed=JSON.parse(stored);if(!Array.isArray(parsed)||!parsed.every(validGroup))throw Error();groups=parsed;}
+ if(stored!==null){const parsed=JSON.parse(stored);if(!Array.isArray(parsed)||!parsed.every(validGroup))throw Error();groups=parsed;initialSavedGroups=structuredClone(parsed);}
  else{const legacy=JSON.parse(localStorage.getItem('goods-ledger-v1')||'[]');if(!Array.isArray(legacy)||!legacy.every(i=>i&&typeof i.id==='string'&&typeof i.name==='string'&&typeof i.date==='string'&&['price','shipping','extra'].every(k=>Number.isSafeInteger(i[k])&&i[k]>=0)&&(!i.sale||(['price','shipping','fee'].every(k=>Number.isSafeInteger(i.sale[k])&&i.sale[k]>=0)&&typeof i.sale.date==='string'))))throw Error();groups=migrate(legacy);}
 }catch{blocked=true;}
 function normalize(){
@@ -48,7 +49,7 @@ function normalize(){
 normalize();
 function storedGroups(){return groups;}
 function status(text,error=false){const node=document.querySelector('#notice');if(node){node.textContent=error?text:'';node.classList.toggle('error',error);}}
-function flush(){clearTimeout(timer);if(blocked){status('기존 기록을 읽지 못해 자동 저장을 중지했습니다. 브라우저 데이터를 확인해주세요.',true);return false;}const data=storedGroups();if(!data.every(validGroup)){status('저장 대기 · 금액은 0 이상의 정수로 입력해주세요. 이전 저장 기록은 유지됩니다.',true);return false;}try{localStorage.setItem(key,JSON.stringify(data));status('✓ 자동 저장 완료');return true;}catch{status('저장 실패 · 입력은 화면에 유지됩니다. 브라우저 저장 공간을 확인해주세요.',true);return false;}}
+function flush(){clearTimeout(timer);if(blocked){status('기존 기록을 읽지 못해 자동 저장을 중지했습니다. 브라우저 데이터를 확인해주세요.',true);return false;}const data=storedGroups();if(!data.every(validGroup)){status('저장 대기 · 금액은 0 이상의 정수로 입력해주세요. 이전 저장 기록은 유지됩니다.',true);return false;}try{if(tabStorage)tabStorage.save(data).then(()=>status('✓ 자동 저장 완료')).catch(()=>status('저장 실패 · 입력은 화면에 유지됩니다. 브라우저 저장 공간을 확인해주세요.',true));else{localStorage.setItem(key,JSON.stringify(data));status('✓ 자동 저장 완료');}return true;}catch{status('저장 실패 · 입력은 화면에 유지됩니다. 브라우저 저장 공간을 확인해주세요.',true);return false;}}
 function input(g,side,row,field,label,type='text',placeholder=''){
  const source=side==='group'?g:row;
  return `<input data-group="${g.id}" data-side="${side}" data-id="${row?.id||''}" data-field="${field}" aria-label="${esc(label)}" type="text" value="${esc(type==='number'?formatMoney(source[field]??''):source[field]??'')}" ${type==='number'?'data-money inputmode="text" lang="ko" maxlength="20"':'maxlength="160"'} placeholder="${esc(placeholder)}" autocomplete="off">`;
@@ -149,5 +150,12 @@ function exportCSV(){const cell=v=>'"'+String(v??'').replace(/^[=+@\-\t\r]/,"'$&
 window.addEventListener('pagehide',flush);
 document.addEventListener('independent-totals-change',updateDashboard);
 render();
+if(!blocked){
+ tabStorage=createTabStorage({key,empty:[],initialBase:initialSavedGroups,valid:value=>Array.isArray(value)&&value.every(validGroup),
+  getValue:()=>groups,
+  onValue:next=>{groups=next;preserveEditor(document.querySelector('#sheet'),renderTable);},
+  onError:error=>status(error.message,true),onFlush:flush});
+ tabStorage.initialize().catch(error=>status(error.message,true));
+}
 mountCalculator();
 mountDropdowns();
