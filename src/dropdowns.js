@@ -43,17 +43,32 @@ export function mountDropdowns() {
     select.setAttribute('aria-controls', list.id);
     list.querySelector('[aria-selected=true]')?.focus({preventScroll: true});
   }
+  function selectIndex(select, index) {
+    if (index === select.selectedIndex) return;
+    select.selectedIndex = index;
+    select.dispatchEvent(new Event('input', {bubbles: true}));
+    select.dispatchEvent(new Event('change', {bubbles: true}));
+  }
   function choose(button) {
     const select = active;
     if (!select?.isConnected) { close(); return; }
-    const index = Number(button.dataset.optionIndex), changed = index !== select.selectedIndex;
-    select.selectedIndex = index;
+    const index = Number(button.dataset.optionIndex);
     close(true);
-    if (changed) {
-      select.dispatchEvent(new Event('input', {bubbles: true}));
-      select.dispatchEvent(new Event('change', {bubbles: true}));
-    }
+    selectIndex(select, index);
   }
+  let lastWheelSelect = null, lastWheelTime = -Infinity;
+  document.addEventListener('wheel', event => {
+    if (event.ctrlKey || event.metaKey || event.shiftKey || !event.deltaY || Math.abs(event.deltaX) > Math.abs(event.deltaY) || active) return;
+    const select = event.target.closest('table select[data-field="status"], table select[data-field="purchaseStatus"], table select[data-independent-field="status"]');
+    if (!select || select.disabled) return;
+    event.preventDefault();
+    // A wheel gesture can emit many events; keep changes deliberate.
+    const now = performance.now();
+    if (select === lastWheelSelect && now - lastWheelTime < 180) return;
+    lastWheelSelect = select; lastWheelTime = now;
+    const index = Math.max(0, Math.min(select.options.length - 1, select.selectedIndex + Math.sign(event.deltaY)));
+    selectIndex(select, index);
+  }, {passive: false});
   document.addEventListener('pointerdown', event => {
     const select = event.target.closest('table select');
     if (select && event.button === 0) {
