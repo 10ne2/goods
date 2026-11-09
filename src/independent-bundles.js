@@ -37,3 +37,14 @@ export function mergeRows(rows, selected, side, id) {
   }
   return result;
 }
+
+export function distributePrice(rows, value) {
+  if (!rows.length) return [];
+  if (value === '') return rows.map(row => ({...row, price: ''}));
+  const total = BigInt(value);
+  const weights = rows.map(row => /^\d+$/.test(String(row.price)) ? BigInt(row.price) : 0n);
+  const weight = weights.reduce((sum, price) => sum + price, 0n);
+  const prices = weights.map(price => weight ? total * price / weight : 0n);
+  prices[0] += total - prices.reduce((sum, price) => sum + price, 0n);
+  return rows.map((row, index) => ({...row, price: String(prices[index])}));
+}

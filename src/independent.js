@@ -1,6 +1,6 @@
 import {createTabStorage, preserveEditor} from './tab-storage.js';
 import {shippingTotal} from './incoming.js';
-import {bundles, orderedBundles, mergeRows} from './independent-bundles.js';
+import {bundles, orderedBundles, mergeRows, distributePrice} from './independent-bundles.js';
 import {DEFAULT_MONTH, validMonth, monthOf, monthOptions} from './months.js';
 import {purchaseColor, saleColor} from './status-colors.js';
 import {formatMoney, readMoneyInput, enableCellEditing} from './sheet-utils.js';
@@ -55,15 +55,17 @@ function input(side, row, index, field, label, type = 'text') {
 }
 function rowHTML(side, row, index, members, position) {
   const buy = side === 'purchases', first = position === 0, span = members.length;
-  const status = `<td class="state" ${buy ? `rowspan="${span}"` : ''}><select data-independent-field="status" aria-label="개별 ${buy ? '구매' : '판매'} ${index + 1}행 상황">${states[side].map(state => `<option ${state === row.status ? 'selected' : ''}>${state}</option>`).join('')}</select></td>`;
-  const month = `<td class="month-cell" ${buy ? `rowspan="${span}"` : ''}><select data-independent-field="month" aria-label="개별 ${buy ? '구매' : '판매'} ${index+1}행 월">${monthOptions(row.month)}</select></td>`;
+  const commonStatus = members.every(item => item.status === row.status) ? row.status : '';
+  const sharedPrice = members.reduce((sum, item) => sum + amount(item.price), 0);
+  const status = `<td class="state ${buy ? '' : 'shared-sale-cell'}" rowspan="${span}"><select data-independent-field="status" aria-label="개별 ${buy ? '구매' : '판매'} ${index + 1}행 상황">${!buy && !commonStatus ? '<option value="" selected disabled>혼합</option>' : ''}${states[side].map(state => `<option ${state === (buy ? row.status : commonStatus) ? 'selected' : ''}>${state}</option>`).join('')}</select></td>`;
+  const month = `<td class="month-cell ${buy ? '' : 'shared-sale-cell'}" rowspan="${span}"><select data-independent-field="month" aria-label="개별 ${buy ? '구매' : '판매'} ${index+1}행 월">${monthOptions(row.month)}</select></td>`;
   const settlement = salesTotals(members);
   const sharedShipping = members.reduce((sum, item) => sum + amount(item.shipping), 0);
   const total = first ? (buy ? `<td class="total" rowspan="${span}" data-independent-total>${members.some(used) ? fmt(members.reduce((sum, item) => sum + rowTotal(side, item), 0)) : '—'}</td>` : `<td class="total sales-total" rowspan="${span}" data-independent-current>${members.some(used) ? fmt(settlement.completed) : '—'}</td><td class="total sales-total" rowspan="${span}" data-independent-total>${members.some(used) ? fmt(settlement.expected) : '—'}</td>`) : '';
   const checked = members.every(item => selected[side].has(item.id));
   const selection = first ? `<td class="selection-cell" rowspan="${span}"><button type="button" role="checkbox" aria-checked="${checked}" data-select-row="${esc(row.id)}" data-select-ids="${esc(JSON.stringify(members.map(item => item.id)))}" aria-label="개별 ${buy ? '구매' : '판매'} ${index+1}행 선택">${checked ? '✓' : ''}</button></td>` : '';
 
-  return `<tr data-independent-id="${esc(row.id)}" class="${row.bundleId ? 'independent-bundled' : ''} ${first && row.bundleId ? 'bundle-start' : ''}" style="--row-fill:${buy ? purchaseColor(row.status) : saleColor(row.status)}">${selection}<td class="product"><div class="product-cell">${input(side, row, index, 'name', '상품명')}<button class="delete-line" data-independent-delete="${esc(row.id)}" aria-label="개별 ${buy ? '구매' : '판매'} ${index + 1}행 삭제" title="행 삭제">×</button></div></td><td class="price">${input(side, row, index, 'price', '가격', 'number')}</td>${first ? `<td class="price shipping-cell" rowspan="${span}">${input(side, {...row, shipping: sharedShipping ? String(sharedShipping) : ''}, index, 'shipping', '배송비', 'number')}</td>` : ''}${total}${!buy || first ? status + month : ''}</tr>`;
+  return `<tr data-independent-id="${esc(row.id)}" class="${row.bundleId ? 'independent-bundled' : ''} ${first && row.bundleId ? 'bundle-start' : ''}" style="--row-fill:${buy ? purchaseColor(row.status) : saleColor(row.status)};--shared-sale-fill:${saleColor(commonStatus)}">${selection}<td class="product"><div class="product-cell">${input(side, row, index, 'name', '상품명')}<button class="delete-line" data-independent-delete="${esc(row.id)}" aria-label="개별 ${buy ? '구매' : '판매'} ${index + 1}행 삭제" title="행 삭제">×</button></div></td>${buy || first ? `<td class="price ${buy ? '' : 'shared-sale-cell'}" ${buy ? '' : `rowspan="${span}"`}>${input(side, buy ? row : {...row, price: members.some(item => item.price !== '') ? String(sharedPrice) : ''}, index, 'price', '가격', 'number')}</td>` : ''}${first ? `<td class="price shipping-cell" rowspan="${span}">${input(side, {...row, shipping: sharedShipping ? String(sharedShipping) : ''}, index, 'shipping', '배송비', 'number')}</td>` : ''}${total}${first ? status + month : ''}</tr>`;
 }
 function tableHTML(side) {
   const buy = side === 'purchases';
@@ -85,7 +87,8 @@ function refreshRows(side) {
       const tr = document.querySelector(`[data-independent-id="${CSS.escape(row.id)}"]`);
       tr?.style.setProperty('--row-fill', side === 'purchases' ? purchaseColor(row.status) : saleColor(row.status));
       tr?.classList.toggle('completed-sale', side === 'sales' && row.status === '판매완료');
-      tr?.querySelector('.shipping-cell')?.classList.toggle('completed-sales-shared', allCompleted);
+      tr?.style.setProperty('--shared-sale-fill', saleColor(members.every(item => item.status === members[0].status) ? members[0].status : ''));
+      tr?.querySelectorAll('.shared-sale-cell,.shipping-cell').forEach(cell => cell.classList.toggle('completed-sales-shared', allCompleted));
       tr?.querySelector('.selection-cell')?.classList.toggle('completed-sales-shared', allCompleted);
       tr?.querySelectorAll('.sales-total').forEach(cell => {
         cell.classList.toggle('equal-sales-total', equal);
@@ -171,18 +174,31 @@ export function mountIndependent(initialMonth = DEFAULT_MONTH) {
   updateToolbarTop();
   enableCellEditing(section);
   if (blocked) message('개별 기록을 읽지 못해 자동 저장을 중지했습니다.', true);
+  const priceBasis = new WeakMap();
+  section.addEventListener('focusin', event => {
+    const element = event.target;
+    if (!element.matches('[data-independent-field="price"]') || element.closest('table').dataset.independentSide !== 'sales') return;
+    const row = data.sales.find(item => item.id === element.closest('tr').dataset.independentId);
+    if (row?.bundleId) priceBasis.set(element, structuredClone(data.sales.filter(item => item.bundleId === row.bundleId && item.month === row.month)));
+  });
   function edit(event) {
     const element = event.target;
     if (!element.matches('[data-independent-field]') || element.dataset.independentField === 'month') return;
     const side = element.closest('table').dataset.independentSide;
     const row = data[side].find(row => row.id === element.closest('tr').dataset.independentId);
-    row[element.dataset.independentField] = element.hasAttribute('data-money') ? readMoneyInput(element, event.isComposing) : element.value;
+    const field = element.dataset.independentField;
+    const value = element.hasAttribute('data-money') ? readMoneyInput(element, event.isComposing) : element.value;
+    if (side === 'sales' && row.bundleId && field === 'price' && validMoney(value)) {
+      const members = data[side].filter(item => item.bundleId === row.bundleId && item.month === row.month);
+      const updated = new Map(distributePrice(priceBasis.get(element) || members, value).map(item => [item.id, item.price]));
+      members.forEach(item => item.price = updated.get(item.id));
+    } else row[field] = value;
     element.setAttribute('aria-invalid', String(element.hasAttribute('data-money') && !validMoney(row[element.dataset.independentField])));
     if (row.bundleId && element.dataset.independentField === 'shipping') {
       data[side].filter(item => item.bundleId === row.bundleId && item.month === row.month && item.id !== row.id).forEach(item => item.shipping = '');
     }
-    if (side === 'purchases' && row.bundleId && element.dataset.independentField === 'status') {
-      data[side].filter(item => item.bundleId === row.bundleId).forEach(item => item.status = row.status);
+    if (row.bundleId && element.dataset.independentField === 'status') {
+      data[side].filter(item => item.bundleId === row.bundleId && item.month === row.month).forEach(item => item.status = row.status);
     }
     refreshRows(side);
     refreshTotals(); message('개별 기록 저장 중…'); clearTimeout(timer); timer = setTimeout(flushIndependent, 350);
@@ -195,7 +211,7 @@ export function mountIndependent(initialMonth = DEFAULT_MONTH) {
       const side = event.target.closest('table').dataset.independentSide;
       const row = data[side].find(row => row.id === event.target.closest('tr').dataset.independentId);
       const previous = structuredClone(data);
-      const members = side === 'purchases' && row.bundleId ? data[side].filter(item => item.bundleId === row.bundleId) : [row];
+      const members = row.bundleId ? data[side].filter(item => item.bundleId === row.bundleId && item.month === row.month) : [row];
       members.forEach(item => item.month = event.target.value);
       if (!flushIndependent()) data = previous;
       for (const kind of sides) if (!data[kind].some(item => item.month === currentMonth)) data[kind].push(blank(kind));
@@ -266,7 +282,7 @@ export function mountIndependent(initialMonth = DEFAULT_MONTH) {
         const members = target.bundleId ? data[side].filter(row => row.bundleId === target.bundleId && row.month === currentMonth) : [target];
         if (target.bundleId) {
           inserted.bundleId = target.bundleId;
-          if (side === 'purchases') { inserted.status = target.status; inserted.month = target.month; }
+          inserted.status = target.status; inserted.month = target.month;
         }
         data[side].splice(data[side].indexOf(members.at(-1)) + 1, 0, inserted);
       } else data[side].push(inserted);

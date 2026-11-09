@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {bundles, orderedBundles, mergeRows} from './independent-bundles.js';
+import {bundles, orderedBundles, mergeRows, distributePrice} from './independent-bundles.js';
 const rows = [
   {id:'a', name:'가 상품', price:'1000', shipping:'300', month:'9', status:'배송중'},
   {id:'b', name:'나 상품', price:'2000', shipping:'400', month:'9', status:'주문완료'},
@@ -41,4 +41,15 @@ test('disconnected members reunite for display without changing the input',()=>{
   const input=[{...rows[0],bundleId:'g'},rows[1],{...rows[2],bundleId:'g'}];
   assert.deepEqual(bundles(input).map(group=>group.map(row=>row.id)),[['a','c'],['b']]);
   assert.deepEqual(input.map(row=>row.id),['a','b','c']);
+});
+
+test('shared price edits preserve proportional item amounts and the exact total',()=>{
+  const result=distributePrice([{id:'a',price:'1000'},{id:'b',price:'3000'}],'8000');
+  assert.deepEqual(result.map(row=>row.price),['2000','6000']);
+  const rounded=distributePrice([{id:'a',price:'1'},{id:'b',price:'1'},{id:'c',price:'1'}],'10');
+  assert.equal(rounded.reduce((sum,row)=>sum+Number(row.price),0),10);
+});
+test('shared price handles blank and previously zero prices',()=>{
+  assert.deepEqual(distributePrice([{id:'a',price:''},{id:'b',price:''}],'5000').map(row=>row.price),['5000','0']);
+  assert.deepEqual(distributePrice([{id:'a',price:'3000'},{id:'b',price:'5000'}],'').map(row=>row.price),['','']);
 });

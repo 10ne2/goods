@@ -22,7 +22,7 @@ export function mountDropdowns() {
     const rect = select.closest('td').getBoundingClientRect();
     list.replaceChildren(...[...select.options].map((option, index) => {
       const button = document.createElement('button');
-      button.type = 'button'; button.setAttribute('role', 'option');
+      button.type = 'button'; button.disabled = option.disabled; button.setAttribute('role', 'option');
       button.setAttribute('aria-selected', String(index === select.selectedIndex));
       button.textContent = option.text; button.dataset.optionIndex = index;
       return button;
@@ -41,7 +41,7 @@ export function mountDropdowns() {
     list.showPopover();
     select.setAttribute('aria-expanded', 'true');
     select.setAttribute('aria-controls', list.id);
-    list.querySelector('[aria-selected=true]')?.focus({preventScroll: true});
+    (list.querySelector('[aria-selected=true]:not(:disabled)') || list.querySelector('button:not(:disabled)'))?.focus({preventScroll: true});
   }
   function selectIndex(select, index) {
     if (index === select.selectedIndex) return;
@@ -67,7 +67,10 @@ export function mountDropdowns() {
     const identity = JSON.stringify([select.closest('table').dataset.independentSide, select.closest('tr').dataset.independentId, select.dataset.group, select.dataset.id, select.dataset.field, select.dataset.independentField]);
     if (identity === lastWheelSelect && now - lastWheelTime < 180) return;
     lastWheelSelect = identity; lastWheelTime = now;
-    const index = Math.max(0, Math.min(select.options.length - 1, select.selectedIndex + Math.sign(event.deltaY)));
+    const enabled = [...select.options].map((option, index) => option.disabled ? -1 : index).filter(index => index >= 0);
+    const position = enabled.indexOf(select.selectedIndex);
+    const index = enabled[Math.max(0, Math.min(enabled.length - 1, position + Math.sign(event.deltaY)))];
+    if (index === undefined) return;
     selectIndex(select, index);
   }, {passive: false});
   document.addEventListener('pointerdown', event => {
@@ -83,7 +86,7 @@ export function mountDropdowns() {
       event.preventDefault(); event.stopImmediatePropagation(); open(select); return;
     }
     if (!active || !list.contains(event.target)) return;
-    const options = [...list.children], index = options.indexOf(event.target);
+    const options = [...list.children].filter(button => !button.disabled), index = options.indexOf(event.target);
     if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
       event.preventDefault(); event.stopImmediatePropagation();
       const next = event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
