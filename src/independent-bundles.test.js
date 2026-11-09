@@ -1,48 +1,44 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {bundles, mergeRows} from './independent-bundles.js';
+import {bundles, orderedBundles, mergeRows} from './independent-bundles.js';
 const rows = [
-  {id:'a', name:'A', price:'1000', shipping:'300', month:'9', status:'배송중'},
-  {id:'b', name:'B', price:'2000', shipping:'400', month:'9', status:'주문완료'},
-  {id:'c', name:'C', price:'3000', shipping:'', month:'9', status:'수령완료'}
+  {id:'a', name:'가 상품', price:'1000', shipping:'300', month:'9', status:'배송중'},
+  {id:'b', name:'나 상품', price:'2000', shipping:'400', month:'9', status:'주문완료'},
+  {id:'c', name:'다 상품', price:'3000', shipping:'500', month:'9', status:'수령완료'}
 ];
-test('purchase bundling preserves all prices and total shipping with shared status and month', () => {
-  const result = mergeRows(rows, new Set(['a','b']), 'purchases', 'bundle');
-  assert.deepEqual(result.map(row => row.price), ['1000','2000','3000']);
-  assert.deepEqual(result.map(row => row.shipping), ['700','','']);
-  assert.equal(result[1].status, '배송중');
-  assert.deepEqual(bundles(result).map(group => group.length), [2,1]);
-  assert.equal(rows[1].shipping, '400');
+test('purchase bundling combines shipping once and shares status/month', () => {
+  const result=mergeRows(rows,new Set(['a','c']),'purchases','group');
+  assert.deepEqual(result.map(row=>row.id),['a','c','b']);
+  assert.deepEqual(result.map(row=>row.shipping),['800','','400']);
+  assert.equal(result[1].status,'배송중');
+  assert.equal(rows[2].shipping,'500');
 });
-test('sales bundling preserves individual statuses, amounts and shipping', () => {
-  const result = mergeRows(rows, new Set(['a','b']), 'sales', 'sale');
-  assert.deepEqual(result.map(row => row.id), ['a','b','c']);
-  assert.equal(result[1].status, '주문완료');
-  assert.equal(result[0].shipping, '300');
+test('sales bundling combines shipping without changing individual statuses',()=>{
+  const result=mergeRows(rows,new Set(['b','c']),'sales','group');
+  assert.deepEqual(result.map(row=>row.id),['a','b','c']);
+  assert.deepEqual(result.map(row=>row.shipping),['300','900','']);
+  assert.equal(result[2].status,'수령완료');
 });
-test('merging an existing bundle includes all members without duplicating shipping', () => {
-  const first = mergeRows(rows, new Set(['a','b']), 'purchases', 'first');
-  const result = mergeRows(first, new Set(['b','c']), 'purchases', 'second');
-  assert.equal(bundles(result).length, 1);
-  assert.equal(result.reduce((sum,row) => sum + Number(row.shipping),0), 700);
-  assert.equal(result.length, 3);
+test('rebundling preserves total shipping and does not force the group to the top',()=>{
+  const initial=mergeRows(rows,new Set(['b','c']),'sales','first');
+  const result=mergeRows(initial,new Set(['c','b']),'sales','next');
+  assert.equal(result[0].id,'a');
+  assert.equal(result.reduce((sum,row)=>sum+Number(row.shipping),0),1200);
 });
-
-test('nonadjacent selected products move together to the top in their existing order', () => {
-  const result = mergeRows(rows, new Set(['c','a']), 'sales', 'sale');
-  assert.deepEqual(result.map(row => row.id), ['a','c','b']);
-  assert.deepEqual(bundles(result).map(group => group.length), [2,1]);
-  assert.deepEqual(result.map(row => row.price), ['1000','3000','2000']);
-  assert.deepEqual(rows.map(row => row.id), ['a','b','c']);
+test('purchase groups follow Korean product name order with blank names last',()=>{
+  const input=[rows[2],{id:'empty',name:'',price:'',shipping:''},rows[0],rows[1]];
+  assert.deepEqual(orderedBundles(input,'purchases').flat().map(row=>row.id),['a','b','c','empty']);
 });
-test('a bundle selected lower in the table moves above unselected products', () => {
-  const result = mergeRows(rows, new Set(['b','c']), 'purchases', 'purchase');
-  assert.deepEqual(result.map(row => row.id), ['b','c','a']);
-  assert.equal(result[0].shipping, '400');
-  assert.equal(result[1].shipping, '');
-  assert.equal(result[2].shipping, '300');
+test('completed sales come first, then names sort naturally within each status',()=>{
+  const input=[{...rows[1],status:'판매완료'},{...rows[0],status:'판매중'},{...rows[2],status:'판매완료'}];
+  assert.deepEqual(orderedBundles(input,'sales').flat().map(row=>row.id),['b','c','a']);
 });
-test('display groups never reorder disconnected records', () => {
-  const input = [{id:'a',bundleId:'g'},{id:'b'},{id:'c',bundleId:'g'}];
-  assert.deepEqual(bundles(input).flat().map(row => row.id), ['a','b','c']);
+test('bundles stay together, complete bundles come first, mixed members sort completed first',()=>{
+  const input=[{...rows[0],status:'판매중',bundleId:'mixed'},{...rows[2],status:'판매완료',bundleId:'mixed'},{...rows[1],status:'판매완료'}];
+  assert.deepEqual(orderedBundles(input,'sales').map(group=>group.map(row=>row.id)),[['b'],['c','a']]);
+});
+test('disconnected members reunite for display without changing the input',()=>{
+  const input=[{...rows[0],bundleId:'g'},rows[1],{...rows[2],bundleId:'g'}];
+  assert.deepEqual(bundles(input).map(group=>group.map(row=>row.id)),[['a','c'],['b']]);
+  assert.deepEqual(input.map(row=>row.id),['a','b','c']);
 });

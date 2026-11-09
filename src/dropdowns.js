@@ -64,8 +64,9 @@ export function mountDropdowns() {
     event.preventDefault();
     // A wheel gesture can emit many events; keep changes deliberate.
     const now = performance.now();
-    if (select === lastWheelSelect && now - lastWheelTime < 180) return;
-    lastWheelSelect = select; lastWheelTime = now;
+    const identity = JSON.stringify([select.closest('table').dataset.independentSide, select.closest('tr').dataset.independentId, select.dataset.group, select.dataset.id, select.dataset.field, select.dataset.independentField]);
+    if (identity === lastWheelSelect && now - lastWheelTime < 180) return;
+    lastWheelSelect = identity; lastWheelTime = now;
     const index = Math.max(0, Math.min(select.options.length - 1, select.selectedIndex + Math.sign(event.deltaY)));
     selectIndex(select, index);
   }, {passive: false});
