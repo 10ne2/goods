@@ -74,10 +74,16 @@ function refreshRows(side) {
     const expected = members.reduce((sum, item) => sum + amount(item.price), 0);
     const completed = members.filter(item => item.status === '판매완료').reduce((sum, item) => sum + amount(item.price), 0);
     const equal = members.some(used) && completed === expected;
+    const allCompleted = side === 'sales' && members.every(item => item.status === '판매완료');
     for (const row of members) {
       const tr = document.querySelector(`[data-independent-id="${CSS.escape(row.id)}"]`);
       tr?.style.setProperty('--row-fill', side === 'purchases' ? purchaseColor(row.status) : saleColor(row.status));
-      tr?.querySelectorAll('.sales-total').forEach(cell => cell.classList.toggle('equal-sales-total', equal));
+      tr?.classList.toggle('completed-sale', side === 'sales' && row.status === '판매완료');
+      tr?.querySelector('.selection-cell')?.classList.toggle('completed-sales-shared', allCompleted);
+      tr?.querySelectorAll('.sales-total').forEach(cell => {
+        cell.classList.toggle('equal-sales-total', equal);
+        cell.classList.toggle('completed-sales-shared', allCompleted);
+      });
       const total = tr?.querySelector('[data-independent-total]');
       if (total) total.textContent = members.some(used) ? fmt(members.reduce((sum, item) => sum + (side === 'purchases' ? rowTotal(side, item) : amount(item.price)), 0)) : '—';
       const current = tr?.querySelector('[data-independent-current]');
@@ -133,6 +139,15 @@ export function mountIndependent(initialMonth = DEFAULT_MONTH) {
   const section = document.querySelector('#independent');
   section.innerHTML = `<div class="independent-heading"><span id="independent-notice" role="status" aria-live="polite"></span></div><div class="independent-scroll"><div class="independent-grid"></div></div>`;
   renderTables();
+  const updateToolbarTop = () => {
+    const header = document.querySelector('header').getBoundingClientRect().height;
+    const controls = document.querySelector('.dashboard-fixed').getBoundingClientRect().height;
+    section.style.setProperty('--independent-toolbar-top', (header + controls) + 'px');
+  };
+  const toolbarObserver = new ResizeObserver(updateToolbarTop);
+  toolbarObserver.observe(document.querySelector('header'));
+  toolbarObserver.observe(document.querySelector('.dashboard-fixed'));
+  updateToolbarTop();
   enableCellEditing(section);
   if (blocked) message('개별 기록을 읽지 못해 자동 저장을 중지했습니다.', true);
   function edit(event) {
