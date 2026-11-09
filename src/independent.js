@@ -21,8 +21,8 @@ export const rowTotal = (side, row) => side === 'purchases' ? amount(row.price) 
 export function independentTotals(data) {
   return {
     purchases: data.purchases.reduce((sum, row) => sum + rowTotal('purchases', row), 0),
-    completed: data.sales.filter(row => row.status === '판매완료').reduce((sum, row) => sum + amount(row.price), 0),
-    expected: data.sales.reduce((sum, row) => sum + amount(row.price), 0)
+    completed: data.sales.filter(row => row.status === '판매완료').reduce((sum, row) => sum + rowTotal('sales', row), 0),
+    expected: data.sales.reduce((sum, row) => sum + rowTotal('sales', row), 0)
   };
 }
 function valid(data) {
@@ -52,15 +52,15 @@ function rowHTML(side, row, index, members, position) {
   const buy = side === 'purchases', first = position === 0, span = members.length;
   const status = `<td class="state" ${buy ? `rowspan="${span}"` : ''}><select data-independent-field="status" aria-label="개별 ${buy ? '구매' : '판매'} ${index + 1}행 상황">${states[side].map(state => `<option ${state === row.status ? 'selected' : ''}>${state}</option>`).join('')}</select></td>`;
   const month = `<td class="month-cell" ${buy ? `rowspan="${span}"` : ''}><select data-independent-field="month" aria-label="개별 ${buy ? '구매' : '판매'} ${index+1}행 월">${monthOptions(row.month)}</select></td>`;
-  const total = first ? (buy ? `<td class="total" rowspan="${span}" data-independent-total>${members.some(used) ? fmt(members.reduce((sum, item) => sum + rowTotal(side, item), 0)) : '—'}</td>` : `<td class="total sales-total" rowspan="${span}" data-independent-current>${members.some(used) ? fmt(members.filter(item => item.status === '판매완료').reduce((sum, item) => sum + amount(item.price), 0)) : '—'}</td><td class="total sales-total" rowspan="${span}" data-independent-total>${members.some(used) ? fmt(members.reduce((sum, item) => sum + amount(item.price), 0)) : '—'}</td>`) : '';
+  const total = first ? (buy ? `<td class="total" rowspan="${span}" data-independent-total>${members.some(used) ? fmt(members.reduce((sum, item) => sum + rowTotal(side, item), 0)) : '—'}</td>` : `<td class="total sales-total" rowspan="${span}" data-independent-current>${members.some(used) ? fmt(members.filter(item => item.status === '판매완료').reduce((sum, item) => sum + rowTotal(side, item), 0)) : '—'}</td><td class="total sales-total" rowspan="${span}" data-independent-total>${members.some(used) ? fmt(members.reduce((sum, item) => sum + rowTotal(side, item), 0)) : '—'}</td>`) : '';
   const checked = members.every(item => selected[side].has(item.id));
   const selection = first ? `<td class="selection-cell" rowspan="${span}"><button type="button" role="checkbox" aria-checked="${checked}" data-select-row="${esc(row.id)}" data-select-ids="${esc(JSON.stringify(members.map(item => item.id)))}" aria-label="개별 ${buy ? '구매' : '판매'} ${index+1}행 선택">${checked ? '✓' : ''}</button></td>` : '';
 
-  return `<tr data-independent-id="${esc(row.id)}" class="${row.bundleId ? 'independent-bundled' : ''} ${first && row.bundleId ? 'bundle-start' : ''}" style="--row-fill:${buy ? purchaseColor(row.status) : saleColor(row.status)}">${selection}<td class="product"><div class="product-cell">${input(side, row, index, 'name', '상품명')}<button class="delete-line" data-independent-delete="${esc(row.id)}" aria-label="개별 ${buy ? '구매' : '판매'} ${index + 1}행 삭제" title="행 삭제">×</button></div></td><td class="price">${input(side, row, index, 'price', '가격', 'number')}</td>${buy && first ? `<td class="price" rowspan="${span}">${input(side, row, index, 'shipping', '배송비', 'number')}</td>` : ''}${total}${!buy || first ? status + month : ''}</tr>`;
+  return `<tr data-independent-id="${esc(row.id)}" class="${row.bundleId ? 'independent-bundled' : ''} ${first && row.bundleId ? 'bundle-start' : ''}" style="--row-fill:${buy ? purchaseColor(row.status) : saleColor(row.status)}">${selection}<td class="product"><div class="product-cell">${input(side, row, index, 'name', '상품명')}<button class="delete-line" data-independent-delete="${esc(row.id)}" aria-label="개별 ${buy ? '구매' : '판매'} ${index + 1}행 삭제" title="행 삭제">×</button></div></td><td class="price">${input(side, row, index, 'price', '가격', 'number')}</td>${!buy || first ? `<td class="price" ${buy ? `rowspan="${span}"` : ''}>${input(side, row, index, 'shipping', '배송비', 'number')}</td>` : ''}${total}${!buy || first ? status + month : ''}</tr>`;
 }
 function tableHTML(side) {
   const buy = side === 'purchases';
-  return `<section class="independent-panel" aria-label="개별 ${buy ? '구매' : '판매'} 장부"><div class="individual-title-row"><h2 class="individual-title">개별 ${buy ? '구매' : '판매'} 테이블</h2><button data-independent-add="${side}" aria-label="개별 ${buy ? '구매' : '판매'} 행 추가">＋</button><div class="bundle-actions"><button class="bundle-action" data-bundle-side="${side}" disabled>선택 묶기</button><button class="bundle-action" data-unbundle-side="${side}" disabled>묶음 해제</button></div></div><table class="independent-sheet" data-independent-side="${side}" style="--completed-sale-fill:${saleColor('판매완료')}"><colgroup><col class="selection-column"><col class="product-column"><col class="money-column"><col class="money-column"><col class="money-column"><col class="detail-column"><col class="detail-column"></colgroup><thead><tr class="bands"><th colspan="7" class="${buy ? 'purchase' : 'sale'}"><div><span>개별 ${buy ? '구매' : '판매'} 내역</span></div></th></tr><tr>${['', '상품명', '가격', ...(buy ? ['배송비', '총 구매 비용'] : ['현재총합', '예상총합']), buy ? '구매상황' : '판매상황', '월'].map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${bundles(data[side].filter(row => row.month === currentMonth)).map(members => members.map((row, position) => rowHTML(side, row, data[side].indexOf(row), members, position)).join('')).join('')}</tbody></table><div class="independent-total" data-independent-summary="${side}"></div></section>`;
+  return `<section class="independent-panel" aria-label="개별 ${buy ? '구매' : '판매'} 장부"><div class="individual-title-row"><h2 class="individual-title">개별 ${buy ? '구매' : '판매'} 테이블</h2><button data-independent-add="${side}" aria-label="개별 ${buy ? '구매' : '판매'} 행 추가">＋</button><div class="bundle-actions"><button class="bundle-action" data-bundle-side="${side}" disabled>선택 묶기</button><button class="bundle-action" data-unbundle-side="${side}" disabled>묶음 해제</button></div></div><table class="independent-sheet" data-independent-side="${side}" style="--completed-sale-fill:${saleColor('판매완료')}"><colgroup><col class="selection-column"><col class="product-column"><col class="money-column"><col class="money-column"><col class="money-column">${buy ? '' : '<col class="money-column">'}<col class="detail-column"><col class="detail-column"></colgroup><thead><tr class="bands"><th colspan="${buy ? 7 : 8}" class="${buy ? 'purchase' : 'sale'}"><div><span>개별 ${buy ? '구매' : '판매'} 내역</span></div></th></tr><tr>${['', '상품명', '가격', ...(buy ? ['배송비', '총 구매 비용'] : ['배송비', '현재총합', '예상총합']), buy ? '구매상황' : '판매상황', '월'].map(label => `<th scope="col">${label}</th>`).join('')}</tr></thead><tbody>${bundles(data[side].filter(row => row.month === currentMonth)).map(members => members.map((row, position) => rowHTML(side, row, data[side].indexOf(row), members, position)).join('')).join('')}</tbody></table><div class="independent-total" data-independent-summary="${side}"></div></section>`;
 }
 function updateSelection() {
   for (const side of sides) {
@@ -71,8 +71,8 @@ function updateSelection() {
 }
 function refreshRows(side) {
   for (const members of bundles(data[side].filter(row => row.month === currentMonth))) {
-    const expected = members.reduce((sum, item) => sum + amount(item.price), 0);
-    const completed = members.filter(item => item.status === '판매완료').reduce((sum, item) => sum + amount(item.price), 0);
+    const expected = members.reduce((sum, item) => sum + rowTotal(side, item), 0);
+    const completed = members.filter(item => item.status === '판매완료').reduce((sum, item) => sum + rowTotal(side, item), 0);
     const equal = members.some(used) && completed === expected;
     const allCompleted = side === 'sales' && members.every(item => item.status === '판매완료');
     for (const row of members) {
@@ -85,9 +85,9 @@ function refreshRows(side) {
         cell.classList.toggle('completed-sales-shared', allCompleted);
       });
       const total = tr?.querySelector('[data-independent-total]');
-      if (total) total.textContent = members.some(used) ? fmt(members.reduce((sum, item) => sum + (side === 'purchases' ? rowTotal(side, item) : amount(item.price)), 0)) : '—';
+      if (total) total.textContent = members.some(used) ? fmt(members.reduce((sum, item) => sum + rowTotal(side, item), 0)) : '—';
       const current = tr?.querySelector('[data-independent-current]');
-      if (current) current.textContent = members.some(used) ? fmt(members.filter(item => item.status === '판매완료').reduce((sum,item) => sum + amount(item.price),0)) : '—';
+      if (current) current.textContent = members.some(used) ? fmt(members.filter(item => item.status === '판매완료').reduce((sum,item) => sum + rowTotal(side, item),0)) : '—';
     }
   }
 }
@@ -109,11 +109,13 @@ export function sizeIndependentColumns() {
     // Preserve fractional grid widths and reserve border/subpixel rounding space.
     const tableWidth = Math.max(0, table.parentElement.getBoundingClientRect().width - 1.25);
     const productWidth = 266 * Math.min(1, tableWidth / 619);
-    const moneyCount = 3;
+    const moneyCount = table.dataset.independentSide === 'purchases' ? 3 : 4;
     const selectionWidth = 26 * Math.min(1, tableWidth / 619);
-    const moneyWidth = (tableWidth - productWidth - selectionWidth) / (moneyCount + detailRatio * 2);
+    const remaining = tableWidth - productWidth - selectionWidth;
+    const detailWidth = Math.max(remaining / (moneyCount + detailRatio * 2) * detailRatio, 66 * Math.min(1, tableWidth / 619));
+    const moneyWidth = (remaining - detailWidth * 2) / moneyCount;
     [...table.querySelectorAll('col')].forEach((col, index) => {
-      col.style.width = (index === 0 ? selectionWidth : index === 1 ? productWidth : index <= moneyCount + 1 ? moneyWidth : moneyWidth * detailRatio) + 'px';
+      col.style.width = (index === 0 ? selectionWidth : index === 1 ? productWidth : index <= moneyCount + 1 ? moneyWidth : detailWidth) + 'px';
     });
   });
 }
@@ -125,7 +127,7 @@ function renderTables() {
   updateSelection();
 }
 export function independentCSVRows() {
-  return sides.flatMap(side => data[side].filter(used).map(row => ['', side === 'purchases' ? '개별 구매' : '개별 판매', row.name, row.price, row.status, side === 'purchases' ? row.shipping : '', '', side === 'sales' ? row.shipping : '', side === 'purchases' ? rowTotal(side, row) : '', side === 'sales' && row.status === '판매완료' ? amount(row.price) : '', side === 'sales' ? amount(row.price) : '', '', '', '', row.month, '', '']));
+  return sides.flatMap(side => data[side].filter(used).map(row => ['', side === 'purchases' ? '개별 구매' : '개별 판매', row.name, row.price, row.status, side === 'purchases' ? row.shipping : '', '', side === 'sales' ? row.shipping : '', side === 'purchases' ? rowTotal(side, row) : '', side === 'sales' && row.status === '판매완료' ? rowTotal('sales', row) : '', side === 'sales' ? rowTotal('sales', row) : '', '', '', '', row.month, '', '']));
 }
 export function mountIndependent(initialMonth = DEFAULT_MONTH) {
   currentMonth = initialMonth;
