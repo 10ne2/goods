@@ -29,3 +29,20 @@ test('local deletion stays deleted and unsaved edits survive a remote deletion',
   assert.deepEqual(mergeChanges(base,[base[0]],[base[0],{...base[1],price:'2500'}]),[base[0]]);
   assert.deepEqual(mergeChanges(base,[base[0],{...base[1],name:'Draft'}],[base[0]]),[base[0],{...base[1],name:'Draft'}]);
 });
+
+test('local product moves stay ordered while preserving remote field edits', () => {
+  const original=[...base,{id:'c',name:'C',price:'3000'}];
+  const local=[original[1],original[2],original[0]];
+  const remote=[{...original[0],price:'1500'},original[1],original[2]];
+  const result=mergeChanges(original,local,remote);
+  assert.deepEqual(result.map(row=>row.id),['b','c','a']);
+  assert.equal(result[2].price,'1500');
+});
+test('remote product moves remain when local changes only a price', () => {
+  const original=[...base,{id:'c',name:'C',price:'3000'}];
+  const local=[{...original[0],price:'1500'},original[1],original[2]];
+  const remote=[original[2],original[0],original[1]];
+  const result=mergeChanges(original,local,remote);
+  assert.deepEqual(result.map(row=>row.id),['c','a','b']);
+  assert.equal(result[1].price,'1500');
+});

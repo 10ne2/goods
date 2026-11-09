@@ -11,7 +11,7 @@ export function mergeChanges(base, local, remote) {
   if (records(base) && records(local) && records(remote)) {
     const before = new Map(base.map(row => [row.id, row]));
     const current = new Map(local.map(row => [row.id, row]));
-    const result = remote.filter(row => current.has(row.id) || !before.has(row.id)).map(row =>
+    let result = remote.filter(row => current.has(row.id) || !before.has(row.id)).map(row =>
       current.has(row.id) ? mergeChanges(before.get(row.id), current.get(row.id), row) : copy(row));
     for (let index = 0; index < local.length; index++) {
       const row = local[index];
@@ -20,6 +20,14 @@ export function mergeChanges(base, local, remote) {
       const next = local.slice(index + 1).find(item => result.some(value => value.id === item.id));
       const position = previous ? result.findIndex(item => item.id === previous.id) + 1 : next ? result.findIndex(item => item.id === next.id) : result.length;
       result.splice(position, 0, copy(row));
+    }
+    const baseOrder = base.filter(row => current.has(row.id)).map(row => row.id);
+    const localOrder = local.filter(row => before.has(row.id)).map(row => row.id);
+    if (!same(baseOrder, localOrder)) {
+      const byId = new Map(result.map(row => [row.id, row]));
+      const ordered = local.filter(row => byId.has(row.id)).map(row => byId.get(row.id));
+      let index = 0;
+      result = result.map(row => current.has(row.id) ? ordered[index++] : row);
     }
     return result;
   }

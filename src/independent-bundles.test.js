@@ -28,9 +28,19 @@ test('merging an existing bundle includes all members without duplicating shippi
   assert.equal(result.length, 3);
 });
 
-test('nonadjacent selections cannot reorder products', () => {
-  assert.throws(() => mergeRows(rows, new Set(['a','c']), 'sales', 'sale'), /연속된 상품/);
+test('nonadjacent selected products move together to the top in their existing order', () => {
+  const result = mergeRows(rows, new Set(['c','a']), 'sales', 'sale');
+  assert.deepEqual(result.map(row => row.id), ['a','c','b']);
+  assert.deepEqual(bundles(result).map(group => group.length), [2,1]);
+  assert.deepEqual(result.map(row => row.price), ['1000','3000','2000']);
   assert.deepEqual(rows.map(row => row.id), ['a','b','c']);
+});
+test('a bundle selected lower in the table moves above unselected products', () => {
+  const result = mergeRows(rows, new Set(['b','c']), 'purchases', 'purchase');
+  assert.deepEqual(result.map(row => row.id), ['b','c','a']);
+  assert.equal(result[0].shipping, '400');
+  assert.equal(result[1].shipping, '');
+  assert.equal(result[2].shipping, '300');
 });
 test('display groups never reorder disconnected records', () => {
   const input = [{id:'a',bundleId:'g'},{id:'b'},{id:'c',bundleId:'g'}];
