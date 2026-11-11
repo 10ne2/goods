@@ -42,7 +42,7 @@ export function mergeChanges(base, local, remote) {
   return copy(local);
 }
 
-export function createTabStorage({key, empty, valid, getValue, onValue, onError, onFlush, initialBase}) {
+export function createTabStorage({key, empty, valid, getValue, onValue, onError, onFlush, initialBase, transform = value => value}) {
   const prefix = key + ':pending:';
   const draftKey = prefix + crypto.randomUUID();
   function read() {
@@ -85,7 +85,7 @@ export function createTabStorage({key, empty, valid, getValue, onValue, onError,
     }
     drafts.sort((a, b) => a.time - b.time || a.name.localeCompare(b.name));
     for (const draft of drafts) remote = mergeChanges(draft.base, draft.value, remote);
-    const local = getValue(), merged = mergeChanges(base, local, remote);
+    const local = getValue(), merged = transform(mergeChanges(base, local, remote));
     if (!valid(merged)) throw Error('저장할 금액을 확인해주세요.');
     const serialized = JSON.stringify(merged);
     if (serialized !== localStorage.getItem(key)) localStorage.setItem(key, serialized);

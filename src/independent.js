@@ -1,3 +1,4 @@
+import {rolloverSales, salesPeriod} from './sales-rollover.js';
 import {createTabStorage, preserveEditor} from './tab-storage.js';
 import {shippingTotal} from './incoming.js';
 import {bundles, orderedBundles, mergeRows, distributePrice} from './independent-bundles.js';
@@ -294,7 +295,7 @@ export function mountIndependent(initialMonth = DEFAULT_MONTH) {
     if (saved && inserted) document.querySelector(`[data-independent-id="${inserted.id}"] [data-independent-field="name"]`)?.focus();
   });
   if (!blocked) {
-    tabStorage = createTabStorage({key, empty: {purchases: [], sales: []}, initialBase: initialSavedData, valid,
+    tabStorage = createTabStorage({key, empty: {purchases: [], sales: []}, initialBase: initialSavedData, valid, transform: rolloverSales,
       getValue: () => data,
       onValue: next => {
         data = next;
@@ -308,6 +309,12 @@ export function mountIndependent(initialMonth = DEFAULT_MONTH) {
       onError: error => message(error.message, true), onFlush: flushIndependent});
     tabStorage.initialize().catch(error => message(error.message, true));
   }
+  const checkRollover = () => {
+    if (!blocked && tabStorage && data.salesRolloverPeriod !== salesPeriod()) flushIndependent();
+  };
+  window.addEventListener('focus', checkRollover);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkRollover(); });
+  setInterval(checkRollover, 60_000);
   window.addEventListener('pagehide', flushIndependent);
 }
 
