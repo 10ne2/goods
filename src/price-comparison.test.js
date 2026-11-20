@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {comparisonTotals, validComparisonPrice, comparisonGroupTotals, comparisonRanking, migrateComparisonRows} from './price-comparison.js';
+import {comparisonTotals, validComparisonPrice, comparisonGroupTotals, comparisonRanking, migrateComparisonRows, normalizeComparisonGroups, validComparisonGroups} from './price-comparison.js';
 test('comparison adds and subtracts named purchase candidates',()=>assert.deepEqual(comparisonTotals([{name:'상품',price:'12000',operation:'+'},{name:'배송비',price:'3000',operation:'+'},{name:'할인',price:'2000',operation:'-'}]),{added:15000,subtracted:2000,total:13000}));
 test('comparison supports empty amounts and negative final balances',()=>assert.deepEqual(comparisonTotals([{price:'',operation:'+'},{price:'1000',operation:'-'}]),{added:0,subtracted:1000,total:-1000}));
 test('invalid comparison prices cannot affect results or be persisted',()=>{
@@ -25,4 +25,23 @@ test('legacy calculation rows migrate with their names prices and minus signs in
 test('a named product without a price is not a cheapest-price candidate',()=>{
   const group={id:'pending',name:'대기',shipping:'',rows:[{id:'row',name:'가격 미입력 상품',price:'',operation:'+'}]};
   assert.deepEqual(comparisonRanking([group]),{count:0,lowest:null});
+});
+
+test('item quantities multiply unit prices and bundle shipping is charged once',()=>{
+  assert.equal(comparisonGroupTotals({shipping:'2500',rows:[{price:'10000',quantity:'3'},{price:'500',quantity:'2'}]}).total,33500);
+});
+test('old plus and minus rows migrate to quantities without changing the total',()=>{
+  const original=[{id:'g',name:'비교',shipping:'1000',rows:[{id:'a',name:'상품',price:'10000',operation:'+'},{id:'b',name:'할인',price:'2000',operation:'-'}]}];
+  const result=normalizeComparisonGroups(original);
+  assert.equal(result[0].rows[0].quantity,'1');
+  assert.equal(result[0].rows[1].price,'-2000');
+  assert.equal(result[0].rows[1].operation,undefined);
+  assert.equal(comparisonGroupTotals(result[0]).total,comparisonGroupTotals(original[0]).total);
+  assert.equal(validComparisonGroups(result),true);
+  assert.equal(original[0].rows[1].operation,'-');
+});
+test('blank quantities do not win comparisons and invalid quantities cannot be saved',()=>{
+  const group={id:'g',name:'비교',shipping:'',rows:[{id:'a',name:'상품',price:'1000',quantity:''}]};
+  assert.equal(comparisonRanking([group]).lowest,null);
+  for(const quantity of ['-1','1.5','abc','1000000'])assert.equal(validComparisonGroups([{...group,rows:[{...group.rows[0],quantity}]}]),false);
 });
