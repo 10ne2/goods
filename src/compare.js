@@ -45,7 +45,9 @@ function field(group, subgroup, row, name, label) {
   const numeric = ['price','shipping','quantity'].includes(name);
   const validate = name === 'price' ? validComparisonItemPrice : name === 'quantity' ? validComparisonQuantity : validComparisonPrice;
   const value = numeric ? (name === 'price' && validComparisonItemPrice(source[name]) && source[name] !== '' ? new Intl.NumberFormat('ko-KR').format(Number(source[name])) : formatMoney(source[name])) : source[name];
-  return `<input type="text" data-group="${esc(group.id)}" data-id="${esc(source.id)}" ${subgroup ? `data-subgroup="${esc(subgroup.id)}"` : ''} ${row ? `data-row="${esc(row.id)}"` : ''} data-field="${name}" value="${esc(value)}" aria-label="${esc(label)}" maxlength="${numeric ? 20 : 160}" ${numeric ? `data-money inputmode="text" lang="ko" aria-invalid="${!validate(source[name])}"` : ''} ${name === 'name' ? `placeholder="${row ? '상품명 입력' : subgroup ? '예: 판매처, 배송 묶음' : '예: A쇼핑몰, 세트 A'}"` : ''} autocomplete="off">`;
+  const html = `<input type="text" data-group="${esc(group.id)}" data-id="${esc(source.id)}" ${subgroup ? `data-subgroup="${esc(subgroup.id)}"` : ''} ${row ? `data-row="${esc(row.id)}"` : ''} data-field="${name}" value="${esc(value)}" aria-label="${esc(label)}" maxlength="${numeric ? 20 : 160}" ${numeric ? `data-money inputmode="text" lang="ko" aria-invalid="${!validate(source[name])}"` : ''} ${name === 'name' ? `placeholder="${row ? '상품명 입력' : subgroup ? '예: 판매처, 배송 묶음' : '예: A쇼핑몰, 세트 A'}"` : ''} autocomplete="off">`;
+  if (name !== 'quantity') return html;
+  return `<div class="comparison-quantity-control">${html}<span class="comparison-quantity-arrows"><button type="button" data-quantity-step="1" aria-label="${esc(label)} 늘리기" title="수량 늘리기"><svg width="8" height="5" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 5 5 1 9 5" fill="none" stroke="currentColor" stroke-width="1"/></svg></button><button type="button" data-quantity-step="-1" aria-label="${esc(label)} 줄이기" title="수량 줄이기"><svg width="8" height="5" viewBox="0 0 10 6" aria-hidden="true"><path d="m1 1 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1"/></svg></button></span></div>`;
 }
 function subgroupHTML(group, subgroup, parentIndex, index) {
   const prefix = `${parentIndex+1}번 묶음 ${index+1}번 내부 묶음`;
@@ -110,7 +112,20 @@ function edit(event) {
 root.addEventListener('input',edit);
 root.addEventListener('compositionend',edit);
 root.addEventListener('focusout',event=>{if(event.target.matches('input[data-field]'))save();});
+function stepQuantity(input, step) {
+  const raw = input.value.replaceAll(',', '');
+  const current = validComparisonQuantity(raw) ? Number(raw || 0) : 0;
+  input.value = String(Math.max(0, Math.min(999999, current + step)));
+  input.dispatchEvent(new Event('input', {bubbles: true}));
+  save();
+  input.focus({preventScroll: true});
+}
 root.addEventListener('click',event=>{
+  const arrow = event.target.closest('[data-quantity-step]');
+  if (arrow) {
+    stepQuantity(arrow.closest('.comparison-quantity-control').querySelector('input'), Number(arrow.dataset.quantityStep));
+    return;
+  }
   const button=event.target.closest('[data-add-subgroup],[data-add-row],[data-copy-group],[data-delete-group],[data-copy-subgroup],[data-delete-subgroup],[data-delete-row]');
   if(!button)return;
   const id=button.dataset.group||button.dataset.addSubgroup||button.dataset.copyGroup||button.dataset.deleteGroup;
@@ -126,6 +141,11 @@ root.addEventListener('click',event=>{
   child.rows=child.rows.filter(row=>row.id!==button.dataset.deleteRow);if(!child.rows.length)child.rows.push(blankRow());renderGroups();save();
 });
 root.addEventListener('keydown',event=>{
+  if (!event.isComposing && event.target.matches('input[data-field="quantity"]') && ['ArrowUp','ArrowDown'].includes(event.key)) {
+    event.preventDefault();
+    stepQuantity(event.target, event.key === 'ArrowUp' ? 1 : -1);
+    return;
+  }
   if(event.key!=='Enter'||event.isComposing||!event.target.matches('input[data-row]'))return;
   event.preventDefault();const group=groups.find(group=>group.id===event.target.dataset.group),child=group.subgroups.find(item=>item.id===event.target.dataset.subgroup),index=child.rows.findIndex(row=>row.id===event.target.dataset.row),name=event.target.dataset.field;
   if(index===child.rows.length-1){child.rows.push(blankRow());renderGroups();save();}
