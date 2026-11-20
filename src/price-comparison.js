@@ -22,17 +22,30 @@ export function comparisonTotals(rows) {
 }
 
 export const validComparisonRows = rows => Array.isArray(rows) && rows.every(row => row && typeof row.id === 'string' && typeof row.name === 'string' && validComparisonItemPrice(row.price) && validComparisonQuantity(row.quantity ?? '1') && (row.operation === undefined || ['+','-'].includes(row.operation)) && lineAmount(row) !== null);
-export const validComparisonGroup = group => group && typeof group.id === 'string' && typeof group.name === 'string' && validComparisonPrice(group.shipping) && validComparisonRows(group.rows);
+export const validComparisonLeaf = group => group && typeof group.id === 'string' && typeof group.name === 'string' && validComparisonPrice(group.shipping) && validComparisonRows(group.rows);
+export const validComparisonGroup = group => group && typeof group.id === 'string' && typeof group.name === 'string'
+  && (Array.isArray(group.subgroups) ? group.subgroups.every(validComparisonLeaf) : validComparisonLeaf(group));
 export const validComparisonGroups = groups => Array.isArray(groups) && groups.every(validComparisonGroup);
-export const comparisonGroupUsed = group => group.shipping !== '' || group.rows.some(row => row.name.trim() || row.price !== '');
+export const comparisonGroupUsed = group => Array.isArray(group.subgroups) ? group.subgroups.some(comparisonGroupUsed) : group.shipping !== '' || group.rows.some(row => row.name.trim() || row.price !== '');
 export function comparisonGroupTotals(group) {
+  if (Array.isArray(group.subgroups)) return group.subgroups.reduce((sum, child) => {
+    const values = comparisonGroupTotals(child);
+    for (const key of Object.keys(sum)) sum[key] += values[key];
+    return sum;
+  }, {added: 0, subtracted: 0, subtotal: 0, shipping: 0, total: 0});
   const values = comparisonTotals(group.rows);
   const shipping = validComparisonPrice(group.shipping) ? Number(group.shipping || 0) : 0;
   return {...values, subtotal: values.total, shipping, total: values.total + shipping};
 }
-export const comparisonGroupReady = group => validComparisonGroup(group)
-  && (group.shipping !== '' || group.rows.some(row => row.price !== ''))
-  && group.rows.every(row => (!row.name.trim() || row.price !== '') && (row.quantity ?? '1') !== '');
+export const comparisonGroupReady = group => {
+  if (!validComparisonGroup(group)) return false;
+  if (Array.isArray(group.subgroups)) {
+    const used = group.subgroups.filter(comparisonGroupUsed);
+    return used.length > 0 && used.every(comparisonGroupReady);
+  }
+  return (group.shipping !== '' || group.rows.some(row => row.price !== ''))
+    && group.rows.every(row => (!row.name.trim() || row.price !== '') && (row.quantity ?? '1') !== '');
+};
 export function comparisonRanking(groups) {
   const candidates = groups.filter(comparisonGroupReady);
   return {count: candidates.length, lowest: candidates.length ? Math.min(...candidates.map(group => comparisonGroupTotals(group).total)) : null};
@@ -42,8 +55,12 @@ export function migrateComparisonRows(rows, createId) {
 }
 
 export function normalizeComparisonGroups(groups) {
-  return groups.map(group => ({...group, rows: group.rows.map(row => {
+  const normalizeLeaf = group => ({...group, rows: group.rows.map(row => {
     const {operation, ...retained} = row;
     return {...retained, price: operation === '-' && row.price !== '' ? String(-Number(row.price)) : row.price, quantity: row.quantity ?? '1'};
-  })}));
+  })});
+  return groups.map(group => {
+    if (Array.isArray(group.subgroups)) return {...group, subgroups: group.subgroups.map(normalizeLeaf)};
+    return {id: group.id, name: group.name, subgroups: [normalizeLeaf({id: group.id + ':inner', name: '내부 묶음 1', shipping: group.shipping, rows: group.rows})]};
+  });
 }

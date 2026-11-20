@@ -33,9 +33,9 @@ test('item quantities multiply unit prices and bundle shipping is charged once',
 test('old plus and minus rows migrate to quantities without changing the total',()=>{
   const original=[{id:'g',name:'비교',shipping:'1000',rows:[{id:'a',name:'상품',price:'10000',operation:'+'},{id:'b',name:'할인',price:'2000',operation:'-'}]}];
   const result=normalizeComparisonGroups(original);
-  assert.equal(result[0].rows[0].quantity,'1');
-  assert.equal(result[0].rows[1].price,'-2000');
-  assert.equal(result[0].rows[1].operation,undefined);
+  assert.equal(result[0].subgroups[0].rows[0].quantity,'1');
+  assert.equal(result[0].subgroups[0].rows[1].price,'-2000');
+  assert.equal(result[0].subgroups[0].rows[1].operation,undefined);
   assert.equal(comparisonGroupTotals(result[0]).total,comparisonGroupTotals(original[0]).total);
   assert.equal(validComparisonGroups(result),true);
   assert.equal(original[0].rows[1].operation,'-');
@@ -44,4 +44,30 @@ test('blank quantities do not win comparisons and invalid quantities cannot be s
   const group={id:'g',name:'비교',shipping:'',rows:[{id:'a',name:'상품',price:'1000',quantity:''}]};
   assert.equal(comparisonRanking([group]).lowest,null);
   for(const quantity of ['-1','1.5','abc','1000000'])assert.equal(validComparisonGroups([{...group,rows:[{...group.rows[0],quantity}]}]),false);
+});
+
+test('nested bundles sum item quantities and each child shipping exactly once',()=>{
+  const group={id:'parent',name:'옵션 A',subgroups:[
+    {id:'one',name:'판매처 1',shipping:'2500',rows:[{id:'a',name:'상품 A',price:'10000',quantity:'2'}]},
+    {id:'two',name:'판매처 2',shipping:'3000',rows:[{id:'b',name:'상품 B',price:'5000',quantity:'3'}]}
+  ]};
+  const values=comparisonGroupTotals(group);
+  assert.equal(values.subtotal,35000);
+  assert.equal(values.shipping,5500);
+  assert.equal(values.total,40500);
+  assert.equal(validComparisonGroups([group]),true);
+});
+test('flat groups migrate into one child without changing names quantities shipping or total',()=>{
+  const group={id:'parent',name:'직구 A',shipping:'3500',rows:[{id:'a',name:'상품',price:'7000',quantity:'3'}]};
+  const result=normalizeComparisonGroups([group])[0];
+  assert.equal(result.name,'직구 A');
+  assert.equal(result.subgroups.length,1);
+  assert.equal(result.subgroups[0].shipping,'3500');
+  assert.deepEqual(result.subgroups[0].rows,group.rows);
+  assert.equal(comparisonGroupTotals(result).total,comparisonGroupTotals(group).total);
+  assert.deepEqual(normalizeComparisonGroups([result]),[result]);
+});
+test('unpriced populated children prevent a parent from being ranked cheapest',()=>{
+  const parent={id:'p',name:'A',subgroups:[{id:'a',name:'정상',shipping:'',rows:[{id:'one',name:'상품',price:'1000',quantity:'1'}]},{id:'b',name:'미입력',shipping:'',rows:[{id:'two',name:'상품',price:'',quantity:'1'}]}]};
+  assert.equal(comparisonRanking([parent]).lowest,null);
 });
